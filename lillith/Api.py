@@ -7,7 +7,7 @@ import urllib.request
 import xml.etree.ElementTree as ET
 import datetime
 
-__all__ = ["CharacterList", "AccountBalance"]
+__all__ = ["initialize"]
 
 
 def xml_to_dict(s):
@@ -110,6 +110,7 @@ class Api:
     def handle(self, data):
         "A default implementation"
         return data 
+initialize = Api.initialize
 
 class CharacterList(Api):
     _method = "/account/Characters.xml.aspx"
