@@ -130,26 +130,7 @@ class AssetList(Api):
     _params = ["characterID"]
     @classmethod
     def handle(self, data):
-        def handle_assets(char, rowset):
-            for row in rowset:
-                if len(row) > 0: # container
-                    thing = {"type": "container", "items": [], "item": row.attrib}
-                    handle_contents(thing, row[0])
-                    char['items'].append(thing)
-                else:
-                    char['items'].append({"type": "item", "item": row.attrib})
-                    
-        def handle_contents(container, rowset):
-            for row in rowset:
-                container['items'].append({"type": "item", "item": row.attrib})
-
-        me={"items": [], "type": "assets"}
-        for rowset in data[1]:
-            if rowset.get("name") == "assets":
-                handle_assets(me, rowset)
-            elif rowset.get("name") == "contents":
-                handle_contents(me, rowset)
-        return me
+        return data['assets']
 
 class Standings(Api):
     _method = "/char/Standings.xml.aspx"

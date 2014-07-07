@@ -61,20 +61,20 @@ class Character:
         items = []
         def handle_container(container, items):
             for item in items:
-                if item['type'] == "container":
-                    new_container = lillith.ItemContainer(item['item'])
-                    handle_container(new_container, item['items'])
+                if "contents" in item:
+                    new_container = lillith.ItemContainer(item)
+                    handle_container(new_container, item['contents'])
                     container.add(new_container)
-                elif item['type'] == "item":
-                    container.add(lillith.Item(item['item']))
+                else:
+                    container.add(lillith.Item(item))
 
-        for item in data['items']:
-            if item['type'] == 'item':
-                items.append(lillith.Item(item['item']))
-            elif item['type'] == 'container':
-               container = lillith.ItemContainer(item['item']) 
-               handle_container(container, item['items'])
-               items.append(container)
+        for item in data:
+            if 'contents' in item:
+                container = lillith.ItemContainer(item) 
+                handle_container(container, item['contents'])
+                items.append(container)
+            else:
+                items.append(lillith.Item(item))
         return items
                  
 
