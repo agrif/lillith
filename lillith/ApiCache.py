@@ -12,10 +12,10 @@ class ApiCache:
         if os.path.exists(cacheitem):
             print("cacheitem %r exists" % cacheitem)
             with open(cacheitem) as fobj:
-                url = fobj.readline()
-                expire = fobj.readline()
+                url = fobj.readline().strip()
+                expire = fobj.readline().strip()
                 data = fobj.read()
-            if time.time() > int(expire):
+            if time.time() > float(expire):
                 return None
             print("returning data from cache")
             return data

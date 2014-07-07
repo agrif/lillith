@@ -8,10 +8,10 @@ class Character:
     def __init__(self, id, data=None):
         self.cid = id
         if data is None:
-            self.data = Api.CharacterInfo.get(characterID=id)
+            self._data = Api.CharacterInfo.get(characterID=id)
         else:
-            self.data = data
-        if self.data.get("characterID") != id:
+            self._data = data
+        if self._data.get("characterID") != id:
             raise ValueError("characterID mismatch")
 
     def __repr__(self):
@@ -19,32 +19,32 @@ class Character:
 
     @property
     def is_mine(self):
-        return 'lastKnownLocation' in self.data
+        return 'lastKnownLocation' in self._data
 
     @cached_property
     def last_known_location(self):
         if not self.is_mine:
             return None
-        return lillith.SolarSystem(name=self.data['lastKnownLocation'])
+        return lillith.SolarSystem(name=self._data['lastKnownLocation'])
 
     @property
     def bloodline(self):
-        return self.data['bloodline']
+        return self._data['bloodline']
 
     @property
     def name(self):
-        return self.data['characterName']
+        return self._data['characterName']
 
     @property
     def id(self):
-        return self.data['characterID']
+        return self._data['characterID']
 
     @property
     def race(self):
-        return self.data['race']
+        return self._data['race']
     @property
     def securityStatus(self):
-        return self.data['securityStatus']
+        return self._data['securityStatus']
 
     @cached_property
     def account_balance(self):
