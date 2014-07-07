@@ -1,9 +1,11 @@
-from .local import LocalObject, QueryBuilder
+from .local import LocalObject, QueryBuilder, RemoteObject, RemoteQueryBuilder
+import lillith
+from lillith import Api
 from .cached_property import cached_property
 from .html import HTMLBuilder
 from .config import _getcf
 
-__all__ = ['Region', 'Constellation', 'SolarSystem']
+__all__ = ['Region', 'Constellation', 'SolarSystem', 'Station', 'ConquerableStation']
 
 class MapObject(LocalObject):
     @cached_property
@@ -265,3 +267,107 @@ class SolarSystem(MapObject):
         for data in qb.select():
             yield cls.new_from_id(data['solarSystemID'], data=data)
     
+class Station(MapObject):
+    _table = 'staStations'
+
+    def __repr__(self):
+        return "<Station {}>".format(self.name)
+
+    @property
+    def name(self):
+        return self._data['stationName']
+
+    @cached_property
+    def region(self):
+        return Region.new_from_id(self._data['regionID'])
+    
+    @cached_property
+    def constellation(self):
+        return Constellation.new_from_id(self._data['constellationID'])
+    
+    @cached_property
+    def solar_system(self):
+        return SolarSystem.new_from_id(self._data['solarSystemID'])
+    
+    @property
+    def reprocessing_efficiency(self):
+        return self._data['reprocessingEfficiency']
+
+    @property
+    def reprocessing_stations_take(self):
+        return self._data['reprocessingStationsTake']
+
+    @property
+    def x(self):
+        return self._data['x']
+
+    @property
+    def y(self):
+        return self._data['y']
+    
+    @property
+    def z(self):
+        return self._data['z']
+    
+    @property
+    def security(self):
+        return self._data['security']
+    
+    @property
+    def docking_cost_per_volume(self):
+        return self._data['dockingCostPerVolume']
+    
+    @property
+    def max_ship_volume_dockable(self):
+        return self._data['maxShipVolumeDockable']
+    
+    @classmethod
+    def filter(cls, name=None, id=None):
+        cfg = _getcf()
+        qb = QueryBuilder(cls)
+        
+        qb.conditions(locals(),
+                      name = "stationName",
+                      id = "stationID",
+        )
+
+        for data in qb.select():
+            yield cls.new_from_id(data['stationID'], data=data)
+
+
+class ConquerableStation(RemoteObject):
+    _api_source = Api.ConqStationList
+    _index = "stationID"
+
+    @property
+    def id(self):
+        return self._data['stationID']
+
+    @cached_property
+    def solar_system(self):
+        return SolarSystem(id=self._data['solarSystemID'])
+    
+    @property
+    def name(self):
+        return self._data['stationName']
+    
+    @cached_property
+    def type(self):
+        return lillith.ItemType(id=self._data['stationTypeID'])
+
+    def __repr__(self):
+        return "<ConquerableStation {}>".format(self.name)
+    
+    @classmethod
+    def filter(cls, id=None, name=None):
+        cfg = _getcf()
+        qb = RemoteQueryBuilder(cls)
+        id = str(id)
+        
+        qb.conditions(locals(),
+                      id = "stationID",
+                      name = "stationName",
+        )
+
+        for data in qb.select():
+            yield cls.new_from_id(data['stationID'], data=data)

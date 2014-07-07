@@ -1,11 +1,50 @@
 from .local import LocalObject, QueryBuilder
-from .map import SolarSystem
+from .map import *
 from .cached_property import cached_property
 from .icons import IconObject
 from .config import _getcf
 
-__all__ = ['ItemType', 'Item', 'ItemContainer']
+__all__ = ['ItemType', 'Item', 'ItemContainer', 'SpaceItem']
 
+   
+class SpaceItem(LocalObject):
+    _table = 'mapDenormalize'
+
+    @classmethod
+    def filter(cls, id):
+        cfg = _getcf()
+        qb = QueryBuilder(cls)
+        
+        qb.conditions(locals(),
+                      id = "itemID",
+        )
+
+        for data in qb.select():
+            yield cls.new_from_id(data['itemID'], data=data)
+
+    @cached_property
+    def type(self):
+        return ItemType.new_from_id(self._data['typeID'])
+
+    @cached_property
+    def solar_system(self):
+        return SolarSystem(id=self._data['solarSystemID'])
+
+    @cached_property
+    def constellation(self):
+        return Constellation(id=self._data['constellationID'])
+
+    @cached_property
+    def region(self):
+        return Region(id=self._data['regionID'])
+
+    @property
+    def name(self):
+        return self._data['itemName']
+
+
+    def __repr__(self):
+        return "<SpaceItem {} {}>".format(self.type.name, self.name)
 class ItemTypeMaterial(LocalObject):
     _table = 'invTypeMaterials'
 
@@ -130,7 +169,7 @@ class ItemType(LocalObject, IconObject):
 class ItemContainer:
     def __init__(self, data):
         self._id = data['itemID']
-        self.data = data
+        self._data = data
         self.items = []
     def __repr__(self):
         return "<ItemContainer {} items: {}>".format(len(self.items), self.type.name)
@@ -138,10 +177,13 @@ class ItemContainer:
         self.items.append(item)
     @cached_property
     def type(self):
-        return ItemType(id=self.data['typeID'])
+        return ItemType(id=self._data['typeID'])
     @cached_property
     def location(self):
-        return SolarSystem(id=self.data['locationID'])
+        lid = self._data.get('locationID')
+        if lid is None: 
+            return None
+        return get_by_id(lid)
     @property
     def total_value(self):
         return sum([x.total_value for x in self.items])
@@ -150,7 +192,7 @@ class ItemContainer:
 class Item:
     def __init__(self, data):
         self._id = data['itemID']
-        self.data = data
+        self._data = data
 
     def __repr__(self):
         return "<Item: {} {}>".format(self.quantity, self.type.name)
@@ -161,15 +203,42 @@ class Item:
 
     @cached_property
     def location(self):
-        return SolarSystem(id=self.data['locationID'])
+        lid = self._data.get('locationID')
+        if lid is None: 
+            return None
+        return get_by_id(lid)
 
     @cached_property
     def type(self):
-        return ItemType(id=self.data['typeID'])
+        return ItemType(id=self._data['typeID'])
     
     @property
     def quantity(self):
-        return int(self.data['quantity'])
+        return int(self._data['quantity'])
+
+
+
+def get_by_id(id):
+    # see http://wiki.eve-id.net/APIv2_Corp_AssetList_XML
+    id = int(id)
+    SolarSystemType = ItemType(id=5)
+
+    if 66000000 <= id <= 66014933:
+        return Station(id=id-6000001)
+    elif 66014934 <= id <= 67999999:
+        return ConquerableStation(id=id)
+    elif 60014861 <= id <= 60014928:
+        return ConquerableStation(id=id)
+    elif 60000000 <= id <= 61000000:
+        return Station(id=id)
+    elif id >= 61000000:
+        return ConquerableStation(id=id)
+    else:
+        si = SpaceItem(id=id)
+        if si.type == SolarSystemType:
+            return SolarSystem(name=si.name)
+        else:
+            raise RuntimeError("Need SpaceItem lookup for", id)
 
 # late imports
 from .market import ItemPrice

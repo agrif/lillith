@@ -153,4 +153,4 @@ class ConqStationList(Api):
     _params = []
     @classmethod
     def handle(self, data):
-        return data
+        return data['outposts']
