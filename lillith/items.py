@@ -1,9 +1,10 @@
 from .local import LocalObject, QueryBuilder
+from .map import SolarSystem
 from .cached_property import cached_property
 from .icons import IconObject
 from .config import _getcf
 
-__all__ = ['ItemType']
+__all__ = ['ItemType', 'Item', 'ItemContainer']
 
 class ItemTypeMaterial(LocalObject):
     _table = 'invTypeMaterials'
@@ -125,6 +126,50 @@ class ItemType(LocalObject, IconObject):
         
         for data in qb.select():
             yield cls.new_from_id(data['typeID'], data=data)
+
+class ItemContainer:
+    def __init__(self, data):
+        self._id = data['itemID']
+        self.data = data
+        self.items = []
+    def __repr__(self):
+        return "<ItemContainer {} items: {}>".format(len(self.items), self.type.name)
+    def add(self, item):
+        self.items.append(item)
+    @cached_property
+    def type(self):
+        return ItemType(id=self.data['typeID'])
+    @cached_property
+    def location(self):
+        return SolarSystem(id=self.data['locationID'])
+    @property
+    def total_value(self):
+        return sum([x.total_value for x in self.items])
+
+
+class Item:
+    def __init__(self, data):
+        self._id = data['itemID']
+        self.data = data
+
+    def __repr__(self):
+        return "<Item: {} {}>".format(self.quantity, self.type.name)
+
+    @property
+    def total_value(self):
+        return self.quantity * self.type.base_price
+
+    @cached_property
+    def location(self):
+        return SolarSystem(id=self.data['locationID'])
+
+    @cached_property
+    def type(self):
+        return ItemType(id=self.data['typeID'])
+    
+    @property
+    def quantity(self):
+        return int(self.data['quantity'])
 
 # late imports
 from .market import ItemPrice

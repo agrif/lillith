@@ -1,4 +1,5 @@
 from .timed_dict import TimedDict
+from .ApiCache import ApiCache
 
 import weakref
 import sqlite3
@@ -12,7 +13,7 @@ def _getcf():
         raise RuntimeError("lillith was not initialized")
     return _lillith_config
 
-def initialize(dbpath, charname, cachetime=60*5):
+def initialize(dbpath, charname, cachetime=60*5, apicachedir=".evecache"):
     class Config:
         def __init__(self, dbpath, charname):
             self.dbpath = dbpath
@@ -27,6 +28,7 @@ def initialize(dbpath, charname, cachetime=60*5):
             
             self.localcache = weakref.WeakValueDictionary()
             self.marketcache = TimedDict(time=cachetime)
+            self.apicache = ApiCache(apicachedir)
         
     global _lillith_config
     _lillith_config = Config(dbpath, charname)
