@@ -86,11 +86,6 @@ class Character:
         return [Character(c['characterID']) for c in Api.CharacterList.get()]
 
     @classmethod
-    def get_by_id(cls, id):
-        "Returns a character by ID"
-        return Character(Api.CharacterID.get(id))
-
-    @classmethod
     def filter(cls, id=None, name=None):
         if all([id is None, name is None]):
             raise ValueError("must provide one of id, name")

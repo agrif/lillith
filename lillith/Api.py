@@ -64,26 +64,18 @@ def xml_to_dict(s):
 
 class Api:
     _base_url = 'https://api.eveonline.com/'
-    keyID = None
-    vCode = None
     _cachetime = None  # this means use the cacheexpire time from the result document
-
-    @classmethod
-    def initialize(cls, keyID, vCode):
-        cls.keyID = keyID
-        cls.vCode = vCode
-        cls.cfg = _getcf()
-        cls.cache = cls.cfg.apicache
 
     @classmethod
     def fetch(cls, data={}, expire=None, cacheOnly=False):
         url = cls._base_url + cls._method
-        data.update({"keyID": cls.keyID, "vCode": cls.vCode})
+        cfg = _getcf()
+        data.update({"keyID": cfg.api_key_id, "vCode": cfg.api_vcode})
         keys = list(data.keys())
         keys.sort()
         data = urllib.parse.urlencode([(x, data[x]) for x in keys])
 
-        val = cls.cache.lookup(url + data)
+        val = cfg.apicache.lookup(url + data)
         if val is not None:
             return xml_to_dict(val)[1]
         if cacheOnly:
@@ -94,7 +86,7 @@ class Api:
         cachetime, d = xml_to_dict(val.decode("UTF-8"))
         if expire is None:
             expire = cachetime
-        cls.cache.save(url + data, val, expire)
+        cfg.apicache.save(url + data, val, expire)
         return d
 
     @classmethod
@@ -113,7 +105,6 @@ class Api:
     def handle(cls, data):
         "A default implementation"
         return data
-initialize = Api.initialize
 
 
 class CharacterList(Api):
