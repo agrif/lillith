@@ -4,6 +4,7 @@ from .cached_property import cached_property
 
 __all__ = ['Character']
 
+
 class Character:
     def __init__(self, id, data=None):
         self.cid = id
@@ -42,8 +43,9 @@ class Character:
     @property
     def race(self):
         return self._data['race']
+
     @property
-    def securityStatus(self):
+    def security_status(self):
         return self._data['securityStatus']
 
     @cached_property
@@ -59,6 +61,7 @@ class Character:
     def assets(self):
         data = Api.AssetList.get(characterID=self.cid)
         items = []
+
         def handle_container(container, items):
             for item in items:
                 if "contents" in item:
@@ -70,24 +73,23 @@ class Character:
 
         for item in data:
             if 'contents' in item:
-                container = lillith.ItemContainer(item) 
+                container = lillith.ItemContainer(item)
                 handle_container(container, item['contents'])
                 items.append(container)
             else:
                 items.append(lillith.Item(item))
         return items
-                 
 
     @classmethod
-    def mine(self):
+    def mine(cls):
         "Returns a list of your characters"
         return [Character(c['characterID']) for c in Api.CharacterList.get()]
 
     @classmethod
-    def get_by_id(self, id):
+    def get_by_id(cls, id):
         "Returns a character by ID"
         return Character(Api.CharacterID.get(id))
-    
+
     @classmethod
     def filter(cls, id=None, name=None):
         if all([id is None, name is None]):
@@ -99,4 +101,3 @@ class Character:
             return [Character(c) for c in cls.list() if c['characterID'] == id]
         if name is not None:
             return [Character(c) for c in cls.list() if c['name'] == name]
-                    
