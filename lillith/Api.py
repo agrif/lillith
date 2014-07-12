@@ -1,13 +1,11 @@
 from .config import _getcf
-
+from .local import Comparison
 
 import time
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 import datetime
-
-__all__ = ["initialize"]
 
 
 def xml_to_dict(s):
@@ -64,11 +62,10 @@ def xml_to_dict(s):
 
 class Api:
     _base_url = 'https://api.eveonline.com/'
-    _cachetime = None  # this means use the cacheexpire time from the result document
 
     @classmethod
-    def fetch(cls, data={}, expire=None, cacheOnly=False):
-        url = cls._base_url + cls._method
+    def fetch(cls, method, **data):
+        url = cls._base_url + method
         cfg = _getcf()
         data.update({"keyID": cfg.api_key_id, "vCode": cfg.api_vcode})
         keys = list(data.keys())
@@ -78,86 +75,70 @@ class Api:
         val = cfg.apicache.lookup(url + data)
         if val is not None:
             return xml_to_dict(val)[1]
-        if cacheOnly:
-            return None
         req = urllib.request.urlopen(url, data.encode("UTF-8"))
         val = req.read()
 
-        cachetime, d = xml_to_dict(val.decode("UTF-8"))
-        if expire is None:
-            expire = cachetime
+        expire, d = xml_to_dict(val.decode("UTF-8"))
         cfg.apicache.save(url + data, val, expire)
         return d
 
-    @classmethod
-    def get(cls, **kwargs):
-        req_args = cls._params
-        for arg in cls._params:
-            if arg not in kwargs:
-                raise RuntimeError("Missing parameter:", arg)
-        for arg in kwargs:
-            if arg not in cls._params:
-                del kwargs[arg]
-        data = cls.fetch(data=kwargs, expire=cls._cachetime)
-        return cls.handle(data)
+class RemoteQueryBuilder:
+    def __init__(self, cls):
+        self.api = cls._api_source
+        self.conds = []
+        self.condfields = []
+    
+    def condition(self, field, val):
+        if val is None:
+            return
+        if isinstance(val, Comparison):
+            raise ValueError("RemoteQueryBuild doesn't support comparisons")
+        
+        self.conds.append((field, val))
+    
+    def conditions(self, locals, **kwargs):
+        for k, v in kwargs.items():
+            self.condition(v, locals[k])
+    
+    def select(self, **fields):
+        data = Api.fetch(self.api, **fields)['outposts']
+        for row in data:
+            if self.conds:
+                for field,val in self.conds:
+                    if row[field] == val:
+                        yield row
+            else:
+                yield row
+class RemoteObject:
+    _api_source = None
+    _index = "rowid"
+
+    def __new__(cls, **kwargs):
+        obj, = cls.filter(**kwargs)
+        return obj
+    def __init__(self, **kwargs):
+        pass
 
     @classmethod
-    def handle(cls, data):
-        "A default implementation"
-        return data
-
-
-class CharacterList(Api):
-    _method = "/account/Characters.xml.aspx"
-    _params = []
+    def filter(cls, **kwargs):
+        raise NotImplementedError("filter")
 
     @classmethod
-    def handle(cls, data):
-        return data['characters']
-
-
-class AccountBalance(Api):
-    _method = "/char/AccountBalance.xml.aspx"
-    _params = ["characterID"]
-
+    def new_from_id(cls, id, data=None):
+        obj = super().__new__(cls)
+        obj._id = id
+        if data:
+            obj._data = data
+        else:
+            qb = RemoteQueryBuilder(obj)
+            qb.condition(cls._index, str(id))
+            obj._data, = qb.select()
+        
+        obj.__init__()
+        return obj
+    
     @classmethod
-    def handle(cls, data):
-        return data['accounts']
+    def all(cls):
+        return cls.filter()
 
 
-class AssetList(Api):
-    _method = "/char/AssetList.xml.aspx"
-    _params = ["characterID"]
-
-    @classmethod
-    def handle(cls, data):
-        return data['assets']
-
-
-class Standings(Api):
-    _method = "/char/Standings.xml.aspx"
-    _params = ["characterID"]
-
-
-class CharacterID(Api):
-    "ID to Name conversion"
-    _method = "/eve/CharacterID.xml.aspx"
-    _params = ["names"]
-
-    @classmethod
-    def handle(cls, data):
-        return data['characters']
-
-
-class CharacterInfo(Api):
-    _method = "/eve/CharacterInfo.xml.aspx"
-    _params = ['characterID']
-
-
-class ConqStationList(Api):
-    _method = "/eve/ConquerableStationList.xml.aspx"
-    _params = []
-
-    @classmethod
-    def handle(cls, data):
-        return data['outposts']

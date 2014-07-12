@@ -6,14 +6,10 @@ __all__ = ['Character']
 
 
 class Character:
-    def __init__(self, id, data=None):
-        self.cid = id
-        if data is None:
-            self._data = Api.CharacterInfo.get(characterID=id)
-        else:
-            self._data = data
-        if self._data.get("characterID") != id:
-            raise ValueError("characterID mismatch")
+    
+    def __new__(cls, **kwargs):
+        obj, = cls.filter(**kwargs)
+        return obj
 
     def __repr__(self):
         return "<Character {}>".format(self.name)
@@ -50,8 +46,8 @@ class Character:
 
     @cached_property
     def account_balance(self):
-        balance = Api.AccountBalance.get(characterID=self.cid)
-        return balance[0]['balance']
+        accounts = Api.Api.fetch("/char/AccountBalance.xml.aspx", characterID=self.id)['accounts']
+        return float(accounts[0]['balance'])
 
     @property
     def skills_in_training(self):
@@ -59,7 +55,7 @@ class Character:
 
     @cached_property
     def assets(self):
-        data = Api.AssetList.get(characterID=self.cid)
+        data = Api.Api.fetch("/char/AssetList.xml.aspx", characterID=self.id)['assets']
         items = []
 
         def handle_container(container, items):
@@ -83,7 +79,8 @@ class Character:
     @classmethod
     def mine(cls):
         "Returns a list of your characters"
-        return [Character(c['characterID']) for c in Api.CharacterList.get()]
+        data = Api.Api.fetch("/account/Characters.xml.aspx")['characters']
+        return [Character(id=c['characterID']) for c in data]
 
     @classmethod
     def filter(cls, id=None, name=None):
@@ -92,7 +89,16 @@ class Character:
         if all([id is not None, name is not None]):
             raise ValueError("cannot specify both id and name")
 
-        if id is not None:
-            return [Character(c) for c in cls.list() if c['characterID'] == id]
         if name is not None:
-            return [Character(c) for c in cls.list() if c['name'] == name]
+            # convert name to ID
+            data = Api.Api.fetch("/eve/CharacterID.xml.aspx", names=name)
+            id = data['characters'][0]['characterID']
+
+        data = Api.Api.fetch("/eve/CharacterInfo.xml.aspx", characterID=id)
+
+        obj = super().__new__(cls)
+        obj._data = data
+        obj.__init__()
+        return [obj]
+    
+    

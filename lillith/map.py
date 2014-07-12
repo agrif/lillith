@@ -1,6 +1,6 @@
-from .local import LocalObject, QueryBuilder, RemoteObject, RemoteQueryBuilder
+from .local import LocalObject, QueryBuilder
 import lillith
-from lillith import Api
+from .Api import RemoteObject, RemoteQueryBuilder, Api
 from .cached_property import cached_property
 from .html import HTMLBuilder
 from .config import _getcf
@@ -336,7 +336,7 @@ class Station(MapObject):
 
 
 class ConquerableStation(RemoteObject):
-    _api_source = Api.ConqStationList
+    _api_source = "/eve/ConquerableStationList.xml.aspx"
     _index = "stationID"
 
     @property
@@ -362,7 +362,8 @@ class ConquerableStation(RemoteObject):
     def filter(cls, id=None, name=None):
         cfg = _getcf()
         qb = RemoteQueryBuilder(cls)
-        id = str(id)
+        if type(id) == int:
+            id = str(id)
         
         qb.conditions(locals(),
                       id = "stationID",
