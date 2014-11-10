@@ -80,21 +80,25 @@ class Character:
     def mine(cls):
         "Returns a list of your characters"
         data = Api.Api.fetch("/account/Characters.xml.aspx")['characters']
-        return [Character(id=c['characterID']) for c in data]
+        return [Character(id=c['characterID'], usekey=True) for c in data]
 
     @classmethod
-    def filter(cls, id=None, name=None):
+    def filter(cls, id=None, name=None, usekey=False):
         if all([id is None, name is None]):
             raise ValueError("must provide one of id, name")
         if all([id is not None, name is not None]):
             raise ValueError("cannot specify both id and name")
+        
+        fetch = Api.Api.fetch_nokey
+        if usekey:
+            fetch = Api.Api.fetch
 
         if name is not None:
             # convert name to ID
-            data = Api.Api.fetch("/eve/CharacterID.xml.aspx", names=name)
+            data = fetch("/eve/CharacterID.xml.aspx", names=name)
             id = data['characters'][0]['characterID']
 
-        data = Api.Api.fetch("/eve/CharacterInfo.xml.aspx", characterID=id)
+        data = fetch("/eve/CharacterInfo.xml.aspx", characterID=id)
 
         obj = super().__new__(cls)
         obj._data = data

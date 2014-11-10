@@ -65,9 +65,15 @@ class Api:
 
     @classmethod
     def fetch(cls, method, **data):
+        cfg = _getcf()
+        data = data.copy()
+        data.update({"keyID": cfg.api_key_id, "vCode": cfg.api_vcode})
+        return cls.fetch_nokey(method, **data)
+    
+    @classmethod
+    def fetch_nokey(cls, method, **data):
         url = cls._base_url + method
         cfg = _getcf()
-        data.update({"keyID": cfg.api_key_id, "vCode": cfg.api_vcode})
         keys = list(data.keys())
         keys.sort()
         data = urllib.parse.urlencode([(x, data[x]) for x in keys])
