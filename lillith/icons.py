@@ -4,6 +4,7 @@ from .html import HTMLBuilder
 class IconObject:
     _icon_type = None
     _icon_size = 64
+    _icon_ext = 'png'
 
     @cached_property
     def icon(self):
@@ -15,7 +16,7 @@ class IconObject:
         if self._icon_type is None:
             raise RuntimeError("no icon type defined")
 
-        return "http://image.eveonline.com/{type}/{id}_{size}.png".format(type=self._icon_type, id=self.id, size=size)
+        return "http://image.eveonline.com/{type}/{id}_{size}.{ext}".format(type=self._icon_type, id=self.id, size=size, ext=self._icon_ext)
 
     def _make_repr_html(self, name, **kwargs):
         t = HTMLBuilder()

@@ -1,11 +1,14 @@
 import lillith
 import lillith.Api as Api
+from .icons import IconObject
 from .cached_property import cached_property
 
 __all__ = ['Character']
 
 
-class Character:
+class Character(IconObject):
+    _icon_type = 'Character'
+    _icon_ext = 'jpg'
     
     def __new__(cls, **kwargs):
         obj, = cls.filter(**kwargs)
