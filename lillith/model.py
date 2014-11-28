@@ -111,6 +111,13 @@ class Constraint(metaclass=ConstraintMeta):
     alternates = []
     def __init__(self, v):
         self.value = v
+        if self.compound:
+            self.value = []
+            for i in v:
+                if isinstance(i, Constraint):
+                    self.value.append(i)
+                else:
+                    self.value.append(Equal(i))
     def __repr__(self):
         return "{0}({1})".format(type(self).__name__, self.value)
     def map(self, f):
