@@ -101,11 +101,14 @@ class ConstraintMeta(type):
         ty = super().__new__(cls, name, bases, attrs)
         if ty.name != "constraint":
             constraint_types[ty.name] = ty
+            for n in ty.alternates:
+                constraint_types[n] = ty
             __all__.append(name)
         return ty
 
 class Constraint(metaclass=ConstraintMeta):
     compound = False
+    alternates = []
     def __init__(self, v):
         self.value = v
     def __repr__(self):
@@ -117,14 +120,22 @@ class Constraint(metaclass=ConstraintMeta):
 
 class And(Constraint):
     compound = True
+    alternates = ['all']
 class Or(Constraint):
     compound = True
-class Equal(Constraint): pass
-class Like(Constraint): pass
-class Less(Constraint): pass
-class LessEqual(Constraint): pass
-class Greater(Constraint): pass
-class GreaterEqual(Constraint): pass
+    alternates = ['any']
+class Equal(Constraint):
+    alternates = ['eq']
+class Like(Constraint):
+    pass
+class Less(Constraint):
+    alternates = ['lt']
+class LessEqual(Constraint):
+    alternates = ['le', 'lte']
+class Greater(Constraint):
+    alternates = ['gt']
+class GreaterEqual(Constraint):
+    alternates = ['ge', 'gte']
 
 class ConstraintVisitor:
     def visit(self, c):
