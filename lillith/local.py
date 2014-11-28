@@ -38,8 +38,8 @@ class SqliteBackend(Backend):
     def verify(self, name, attrs):
         pass
 
-    def get_id(self, model, data):
-        return data['rowid']
+    def get_id_key(self, model):
+        return 'rowid'
 
     def _iter_data(self, c):
         for row in c:

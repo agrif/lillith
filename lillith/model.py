@@ -62,8 +62,8 @@ class Backend:
     def verify(self, name, attrs):
         pass
 
-    def get_id(self, model, data):
-        raise NotImplementedError("Backend.get_id")
+    def get_id_key(self, model):
+        return None
 
     def fetch_single(self, model, i):
         raise NotImplementedError("Backend.fetch_single")
@@ -196,7 +196,7 @@ def parse_constraints(model, raw):
         if '__' in k:
             k, ctype = k.split('__', 1)
         
-        if not k in model._fields:
+        if not k in model._fields and k != "self":
             raise ValueError('invalid field: ' + k)
         if ctype:
             if not ctype in constraint_types:
@@ -206,10 +206,16 @@ def parse_constraints(model, raw):
         else:
             if not isinstance(v, Constraint):
                 v = Equal(v)
-        
-        f = model._fields[k]
-        v = v.map(f.convert.forward)
-        cs.setdefault(f.name, []).append(v)
+        if k == "self":
+            idk = model._backend.get_id_key(model)
+            if idk is None:
+                raise NotImplementedError("backend does not support ids")
+            v = v.map(lambda x: x.id if isinstance(x, model) else x)
+            cs.setdefault(idk, []).append(v)
+        else:
+            f = model._fields[k]
+            v = v.map(f.convert.forward)
+            cs.setdefault(f.name, []).append(v)
     final = {}
     for k, v in cs.items():
         if len(v) == 0:
@@ -227,7 +233,10 @@ class Model(metaclass=ModelMeta, backend=Backend()):
 
     @property
     def id(self):
-        return self._backend.get_id(self.__class__, self._data)
+        k = self._backend.get_id_key(self.__class__)
+        if k is None:
+            raise NotImplementedError("backend does not support ids")
+        return self._data[k]
 
     @classmethod
     def all(cls):
@@ -236,16 +245,25 @@ class Model(metaclass=ModelMeta, backend=Backend()):
     @classmethod
     def filter(cls, **kwargs):
         constraints = parse_constraints(cls, kwargs)
+        k = cls._backend.get_id_key(cls)
         for d in cls._backend.fetch(cls, constraints):
-            i = cls._backend.get_id(cls, d)
+            i = None
+            if k:
+                i = d[k]
             yield cls.new_from_id(i, data=d)
 
     @classmethod
     def new_from_id(cls, i, data=None):
-        try:
-            return cls._cache[i]
-        except KeyError:
-            pass
+        if i is not None and cls._backend.get_id_key(cls) is None:
+            raise NotImplementedError("backend does not support ids")
+        if i is None and data is None:
+            raise ValueError("must provide one of id or data")
+        
+        if i is not None:
+            try:
+                return cls._cache[i]
+            except KeyError:
+                pass
 
         if not data:
             data = cls._backend.fetch_single(cls, i)
@@ -255,5 +273,6 @@ class Model(metaclass=ModelMeta, backend=Backend()):
                 raise RuntimeError("backend did not provide " + v.name)
         o = super().__new__(cls)
         o._data = data
-        cls._cache[i] = o
+        if i is not None:
+            cls._cache[i] = o
         return o
