@@ -11,5 +11,5 @@ if __name__ == '__main__':
         print("usage: {} <dbpath> <charname>".format(sys.argv[0]), file=sys.stderr)
         sys.exit(1)
         
-    initialize(dbpath, charname)
+    initialize(dbpath, charname, None, None)
     code.interact("lillith", local=namespace)

@@ -1,5 +1,4 @@
 from .config import _getcf
-from .local import Comparison
 
 import time
 import urllib.parse
@@ -97,8 +96,8 @@ class RemoteQueryBuilder:
     def condition(self, field, val):
         if val is None:
             return
-        if isinstance(val, Comparison):
-            raise ValueError("RemoteQueryBuild doesn't support comparisons")
+        #if isinstance(val, Comparison):
+        #    raise ValueError("RemoteQueryBuild doesn't support comparisons")
         
         self.conds.append((field, val))
     

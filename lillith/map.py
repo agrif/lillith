@@ -1,4 +1,5 @@
-from .local import LocalObject, QueryBuilder
+from .local import LocalObject
+from .model import Field, Isomorphism
 import lillith
 from .Api import RemoteObject, RemoteQueryBuilder, Api
 from .cached_property import cached_property
@@ -7,27 +8,35 @@ from .config import _getcf
 
 __all__ = ['Region', 'Constellation', 'SolarSystem', 'Station', 'ConquerableStation']
 
-class MapObject(LocalObject):
+class SimpleMapObject(LocalObject):
+    x = Field()
+    y = Field()
+    z = Field()
+
     @cached_property
     def position(self):
         return tuple(self._data[k] for k in ['x', 'y', 'z'])
-    
+
+class MapObject(SimpleMapObject):
+    x_min = Field()
+    x_max = Field()
+    y_min = Field()
+    y_max = Field()
+    z_min = Field()
+    z_max = Field()
+
+    radius = Field()
+
     @cached_property
     def bounding_box(self):
         mins = tuple(self._data[k+'Min'] for k in ['x', 'y', 'z'])
         maxs = tuple(self._data[k+'Max'] for k in ['x', 'y', 'z'])
         return (mins, maxs)
     
-    @property
-    def radius(self):
-        return self._data['radius']    
-
 class Region(MapObject):
     _table = 'mapRegions'
-    
-    @property
-    def name(self):
-        return self._data['regionName']
+
+    name = Field('regionName')
     
     # factionID
     
@@ -42,30 +51,11 @@ class Region(MapObject):
     def __repr__(self):
         return "<Region: {}>".format(self.name)
     
-    @classmethod
-    def filter(cls, name=None, id=None):
-        cfg = _getcf()
-        qb = QueryBuilder(cls)
-        
-        qb.conditions(locals(),
-                      name = "regionName",
-                      id = "regionID",
-        )
-
-        for data in qb.select():
-            yield cls.new_from_id(data['regionID'], data=data)
-
 class Constellation(MapObject):
     _table = 'mapConstellations'
-    
-    @property
-    def name(self):
-        return self._data['constellationName']
-    
-    @cached_property
-    def region(self):
-        return Region.new_from_id(self._data['regionID'])
-    
+
+    name = Field('constellationName')
+    region = Field('regionID', foreign_key=Region)
     # factionID
     
     @property
@@ -74,110 +64,23 @@ class Constellation(MapObject):
     
     def __repr__(self):
         return "<Constellation: {}/{}>".format(self.region.name, self.name)
-    
-    @classmethod
-    def filter(cls, name=None, id=None, region=None):
-        cfg = _getcf()
-        qb = QueryBuilder(cls)
-
-        regionid = None
-        if region is not None:
-            if not isinstance(region, Region):
-                region = Region(name=region)
-            regionid = region.id
-
-        qb.conditions(locals(),
-                      name = "constellationName",
-                      regionid = "regionID",
-                      id = "constellationID",
-        )
-        
-        for data in qb.select():
-            yield cls.new_from_id(data['constellationID'], data=data)
-
-class SolarSystemJumps(LocalObject):
-    _table = 'mapSolarSystemJumps'
-
-    @cached_property
-    def from_solar_system(self):
-        return SolarSystem.new_from_id(self._data['fromSolarSystemID'])
-
-    @cached_property
-    def to_solar_system(self):
-        return SolarSystem.new_from_id(self._data['toSolarSystemID'])
-    
-    def __repr__(self):
-        return "<SolarSystemJump: {} -> {}>".format(self.from_solar_system.name, self.to_solar_system.name)
-
-    @classmethod
-    def filter(cls, from_solar_system=None):
-        cfg = _getcf()
-        qb = QueryBuilder(cls)
-
-        fromid = None
-        if from_solar_system is not None:
-            if not isinstance(from_solar_system, SolarSystem):
-                from_solar_system = SolarSystem(name=from_solar_system)
-            fromid = from_solar_system.id
-
-        qb.conditions(locals(),
-                      fromid = "fromSolarSystemID",
-        )
-
-        for data in qb.select():
-            yield cls.new_from_id(data['rowid'], data=data)
 
 class SolarSystem(MapObject):
     _table = 'mapSolarSystems'
+
+    name = Field('solarSystemName')
+    region = Field('regionID', foreign_key=Region)
+    constellation = Field('constellationID', foreign_key=Constellation)
+    luminosity = Field()
+    border = Field(convert=Isomorphism.simple(int, bool))
+    fringe = Field(convert=Isomorphism.simple(int, bool))
+    corridor = Field(convert=Isomorphism.simple(int, bool))
+    hub = Field(convert=Isomorphism.simple(int, bool))
+    international = Field(convert=Isomorphism.simple(int, bool))
+    regional = Field(convert=Isomorphism.simple(int, bool))
+    constellational = Field('constellation', convert=Isomorphism.simple(int, bool))
+    security = Field()
     
-    @property
-    def name(self):
-        return self._data['solarSystemName']
-    
-    @cached_property
-    def region(self):
-        return Region.new_from_id(self._data['regionID'])
-    
-    @cached_property
-    def constellation(self):
-        return Constellation.new_from_id(self._data['constellationID'])
-    
-    @property
-    def luminosity(self):
-        return self._data['luminosity']
-    
-    @property
-    def border(self):
-        return bool(self._data['border'])
-    
-    @property
-    def fringe(self):
-        return bool(self._data['fringe'])
-
-    @property
-    def corridor(self):
-        return bool(self._data['corridor'])
-
-    @property
-    def hub(self):
-        return bool(self._data['hub'])
-
-    @property
-    def international(self):
-        return bool(self._data['international'])
-
-    @property
-    def regional(self):
-        return bool(self._data['regional'])
-
-    @property
-    def constellational(self):
-        return bool(self._data['constellation'])
-
-    @property
-    def security(self):
-        return self._data['security']
-
     @cached_property
     def security_color(self):
         sec = round(self.security, 1)
@@ -204,18 +107,18 @@ class SolarSystem(MapObject):
         elif sec <= 0.0:
             return (0xF0, 0x00, 0x00)
         
-    # factionID
-    
+    # factionID    
     # sunTypeID
-
-    @property
-    def security_class(self):
-        return self._data['securityClass']
+    security_class = Field()
 
     @cached_property
     def jumps(self):
         jumps = SolarSystemJumps.filter(from_solar_system=self)
         return [jump.to_solar_system for jump in jumps]
+
+    @cached_property
+    def stations(self):
+        return Station.filter(solar_system=self)
 
     def __repr__(self):
         return "<SolarSystem: {}/{}/{} {:.1f}>".format(self.region.name, self.constellation.name, self.name, self.security)
@@ -229,112 +132,32 @@ class SolarSystem(MapObject):
         t.print('/', self.constellation.name, '/', self.region.name)
 
         return t.result
-    
-    @classmethod
-    def filter(cls, name=None, id=None, region=None, constellation=None, luminosity=None, border=None, fringe=None, corridor=None, hub=None, international=None, regional=None, constellational=None, security=None, security_class=None):
-        cfg = _getcf()
-        qb = QueryBuilder(cls)
-        
-        regionid = None
-        if region is not None:
-            if not isinstance(region, Region):
-                region = Region(name=region)
-            regionid = region.id
-        
-        constellationid = None
-        if constellation is not None:
-            if not isinstance(constellation, Constellation):
-                constellation = Constellation(name=constellation)
-            constellationid = constellation.id
-        
-        qb.conditions(locals(),
-                      name = "solarSystemName",
-                      constellationid = "constellationID",
-                      regionid = "regionID",
-                      id = "solarSystemID",
-                      luminosity = "luminosity",
-                      border = "border",
-                      fringe = "fringe",
-                      corridor = "corridor",
-                      hub = "hub",
-                      international = "international",
-                      regional = "regional",
-                      constellational = "constellation",
-                      security = "security",
-                      security_class = "securityClass"
-        )
 
-        for data in qb.select():
-            yield cls.new_from_id(data['solarSystemID'], data=data)
+class SolarSystemJumps(LocalObject):
+    _table = 'mapSolarSystemJumps'
+
+    from_solar_system = Field('fromSolarSystemID', foreign_key=SolarSystem)
+    to_solar_system = Field('toSolarSystemID', foreign_key=SolarSystem)
     
-class Station(MapObject):
+    def __repr__(self):
+        return "<SolarSystemJump: {} -> {}>".format(self.from_solar_system.name, self.to_solar_system.name)
+    
+class Station(SimpleMapObject):
     _table = 'staStations'
 
     def __repr__(self):
         return "<Station {}>".format(self.name)
 
-    @property
-    def name(self):
-        return self._data['stationName']
-
-    @cached_property
-    def region(self):
-        return Region.new_from_id(self._data['regionID'])
+    name = Field('stationName')
+    region = Field('regionID', foreign_key=Region)
+    constellation = Field('constellationID', foreign_key=Constellation)
+    solar_system = Field('solarSystemID', foreign_key=SolarSystem)
+    reprocessing_efficiency = Field()
+    reprocessing_stations_take = Field()
+    security = Field()
+    docking_cost_per_volume = Field()
+    max_ship_volume_dockable = Field()
     
-    @cached_property
-    def constellation(self):
-        return Constellation.new_from_id(self._data['constellationID'])
-    
-    @cached_property
-    def solar_system(self):
-        return SolarSystem.new_from_id(self._data['solarSystemID'])
-    
-    @property
-    def reprocessing_efficiency(self):
-        return self._data['reprocessingEfficiency']
-
-    @property
-    def reprocessing_stations_take(self):
-        return self._data['reprocessingStationsTake']
-
-    @property
-    def x(self):
-        return self._data['x']
-
-    @property
-    def y(self):
-        return self._data['y']
-    
-    @property
-    def z(self):
-        return self._data['z']
-    
-    @property
-    def security(self):
-        return self._data['security']
-    
-    @property
-    def docking_cost_per_volume(self):
-        return self._data['dockingCostPerVolume']
-    
-    @property
-    def max_ship_volume_dockable(self):
-        return self._data['maxShipVolumeDockable']
-    
-    @classmethod
-    def filter(cls, name=None, id=None):
-        cfg = _getcf()
-        qb = QueryBuilder(cls)
-        
-        qb.conditions(locals(),
-                      name = "stationName",
-                      id = "stationID",
-        )
-
-        for data in qb.select():
-            yield cls.new_from_id(data['stationID'], data=data)
-
-
 class ConquerableStation(RemoteObject):
     _api_source = "/eve/ConquerableStationList.xml.aspx"
     _index = "stationID"
