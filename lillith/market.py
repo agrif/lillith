@@ -1,4 +1,5 @@
 from .config import _getcf
+from .model import Backend, Model, Field, Isomorphism, ConstraintVisitor
 from .cached_property import cached_property
 from .map import Region, SolarSystem
 from .items import ItemType
@@ -9,37 +10,66 @@ import json
 
 __all__ = ['ItemPrice']
 
-class MarketObject:
-    _url = None
-    
-    def __new__(cls, *args, **kwargs):
-        raise RuntimeError("market data objects cannot be created directly")
-    
-    def __init__(self):
-        pass
-    
-    @classmethod
-    def filter(cls, **kwargs):
-        raise NotImplementedError("filter")
-    
-    @classmethod
-    def _fetch(cls, **kwargs):
-        cfg = _getcf()
+class ModelFromName(Isomorphism):
+    def __init__(self, model):
+        self.model = model
+    def forward(self, x):
+        if isinstance(x, self.model):
+            return x.id
+        return self.model(name=x).id
+    def backward(self, x):
+        return self.model.new_from_id(x)
 
+class EqualConstraintVisitor(ConstraintVisitor):
+    def __init__(self, full=set()): # empty full set is ok-ish for most uses
+        self.full = full
+
+    def visit_compound(self, c, l):
+        op, identity = {
+            'and': (lambda a, b: a.intersection(b), self.full),
+            'or': (lambda a, b: a.union(b), set()),
+        }[c.name]
+        if not l:
+            return identity
+        result = self.visit(l[0])
+        for x in l[1:]:
+            result = op(result, self.visit(x))
+        return result
+    
+    def visit_equal(self, v):
+        return {v}
+
+class MarketBackend(Backend):
+    def fetch(self, model, constraints):
+        if not '_url' in dir(model):
+            raise ValueError("Market models must have a _url attribute")
+        
+        cfg = _getcf()
         params = {}
-        for k, v in kwargs.items():
-            if not isinstance(v, list):
-                v = [v]
-            params[k] = ','.join(str(i) for i in v)
+        for k, v in constraints.items():
+            paramname = k.extra.get('paramname', None)
+            if not paramname:
+                pythonname = {f: v for v, f in model._fields.items()}[k]
+                raise ValueError("field " + pythonname + " cannot be filtered on")
+            vals = EqualConstraintVisitor(k.extra.get('all', set())).visit(v)
+            vals = k.extra.get('edit', lambda x: x)(vals)
+            params[paramname] = ','.join(str(i) for i in vals)
+        for f in model._fields.values():
+            paramname = f.extra.get('paramname', None)
+            if not paramname:
+                continue
+            if 'default' in f.extra and paramname not in params:
+                params[paramname] = f.extra['default']
         params['char_name'] = cfg.charname
         
-        url = cls._url + '?' + urllib.parse.urlencode(params)
+        url = model._url + '?' + urllib.parse.urlencode(params)
         
         try:
             return cfg.marketcache[url]
-        except KeyError:
+        except:
             pass
         
+        #print(url)
         with urllib.request.urlopen(url) as f:
             rstr = f.read().decode()
             try:
@@ -50,37 +80,33 @@ class MarketObject:
         results = []
         for datarow in result['emd']['result']:
             data = datarow['row']
-            
-            obj = super().__new__(cls)
-            obj._cfg = cfg
-            obj._data = data
-            obj.__init__()
-            
-            results.append(obj)
-        
+            rect_data = {}
+            # rectify terrible types from eve-marketdata.com
+            for k, v in data.items():
+                if isinstance(v, str):
+                    try:
+                        v = int(v, base=10)
+                    except ValueError:
+                        try:
+                            v = float(v)
+                        except ValueError:
+                            pass
+                rect_data[k] = v
+            results.append(rect_data)
         cfg.marketcache[url] = results
         return results
+
+class MarketObject(Model, backend=MarketBackend()):
+    pass
 
 class ItemPrice(MarketObject):
     _url = "http://api.eve-marketdata.com/api/item_prices2.json"
     
-    @cached_property
-    def type(self):
-        return ItemType.new_from_id(int(self._data['typeID']))
-    
-    @cached_property
-    def region(self):
-        if 'regionID' in self._data:
-            return Region.new_from_id(int(self._data['regionID']))
-        if self.solar_system is not None:
-            return self.solar_system.region
-        return None
-
-    @cached_property
-    def solar_system(self):
-        if 'solarsystemID' in self._data:
-            return SolarSystem.new_from_id(int(self._data['solarsystemID']))
-        return None
+    type = Field('typeID', convert=ModelFromName(ItemType), extra={'paramname': 'type_ids'})
+    region = Field('regionID', convert=ModelFromName(Region), optional=True, extra={'paramname': 'region_ids'})
+    solar_system = Field('solarsystemID', convert=ModelFromName(SolarSystem), optional=True, extra={'paramname': 'solarsystem_ids'})
+    buysell = Field(convert=Isomorphism.from_map({'buy': 'b', 'sell': 's'}), extra={'paramname': 'buysell', 'default': 'a', 'edit': lambda x: {'a'} if x == {'b', 's'} else x, 'all': {'b', 's'}})
+    price = Field()
     
     @cached_property
     def location(self):
@@ -88,61 +114,8 @@ class ItemPrice(MarketObject):
             return self.solar_system
         return self.region
     
-    @cached_property
-    def buysell(self):
-        c = self._data['buysell']
-        if c == 'b':
-            return 'buy'
-        elif c == 's':
-            return 'sell'
-        else:
-            raise RuntimeError("unexpected value for buysell")
-    
-    @property
-    def price(self):
-        return float(self._data['price'])
-    
     def __repr__(self):
         return "<ItemPrice: {} {} at {:.2f}>".format(self.buysell, self.type.name, self.price)
     
     # FIXME marketgroup_ids, station_ids
     # FIXME minmax
-    @classmethod
-    def filter(cls, type=None, region=None, solar_system=None, buysell=None):
-        if all([type is None, region is None, solar_system is None]):
-            raise ValueError("must provide one of type, region, solar_system")
-        
-        if all([region is not None, solar_system is not None]):
-            raise ValueError("cannot specify both region and solar system")
-        
-        params = {}
-        
-        if type is not None:
-            if not isinstance(type, list):
-                type = [type]
-            type = [t if isinstance(t, ItemType) else ItemType(name=t) for t in type]
-            params['type_ids'] = [t.id for t in type]
-        
-        if region is not None:
-            if not isinstance(region, list):
-                region = [region]
-            region = [r if isinstance(r, Region) else Region(name=r) for r in region]
-            params['region_ids'] = [r.id for r in region]
-        
-        if solar_system is not None:
-            if not isinstance(solar_system, list):
-                solar_system = [solar_system]
-            solar_system = [s if isinstance(s, SolarSystem) else SolarSystem(name=s) for s in solar_system]
-            params['solarsystem_ids'] = [s.id for s in solar_system]
-        
-        params['buysell'] = 'a'
-        if buysell is not None:
-            buysell = buysell.lower()
-            if not buysell in ['buy', 'sell']:
-                raise ValueError("invalid value for buysell: {}".format(buysell))
-            if buysell == 'buy':
-                params['buysell'] = 'b'
-            else:
-                params['buysell'] = 's'
-        
-        return [p for p in cls._fetch(**params) if p.price > 0]

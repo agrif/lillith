@@ -49,10 +49,12 @@ class SqliteBackend(Backend):
             raise ValueError('Sqlite models must have _table attribute')
         
         query = "select rowid, * from " + model._table + " where rowid = ?"
+        #print(query, [i])
         c = self.dbc().cursor()
         c.execute(query, (i,))
         for d in self._iter_data(c):
             return d
+        raise ValueError("invalid id")
     
     def fetch(self, model, constraints):
         if not '_table' in dir(model):

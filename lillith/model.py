@@ -1,4 +1,5 @@
 import weakref
+from .cached_property import cached_property
 
 __all__ = []
 
@@ -85,8 +86,18 @@ class ModelID(Isomorphism):
         return self.model.new_from_id(i)
     
 class Field:
-    def __init__(self, name=None, convert=Isomorphism.identity(), foreign_key=None):
+    def __init__(self, name=None, convert=None, foreign_key=None, optional=False, default=None, extra={}):
         self.name = name
+        
+        self.cached = True
+        if convert is None and foreign_key is None:
+            self.cached = False
+        
+        self.extra = extra
+        self.optional = optional
+        self.default = default
+        if convert is None:
+            convert = Isomorphism.identity()
         self.foreign_key = None
         if foreign_key:
             self.foreign_key = foreign_key
@@ -95,9 +106,14 @@ class Field:
     def __repr__(self):
         return "<Field: {0}>".format(repr(self.name))
     def make_property(self):
-        @property
+        dec = property
+        if self.cached:
+            dec = cached_property
+        @dec
         def prop(inner_self):
-            return self.convert.backward(inner_self._data[self.name])
+            if self.name in inner_self._data:
+                return self.convert.backward(inner_self._data[self.name])
+            return self.default
         return prop
 
 constraint_types = {}
@@ -186,6 +202,8 @@ class ModelMeta(type):
                 v.name = convert.forward(k)
         rfields = {}
         for k, v in fields.items():
+            if k == 'self':
+                continue
             attrs[k] = v.make_property()
             rfields[v.name] = v
         attrs['_fields'] = fields
@@ -276,7 +294,7 @@ class Model(metaclass=ModelMeta, backend=Backend()):
             data = cls._backend.fetch_single(cls, i)
 
         for k, v in cls._fields.items():
-            if not v.name in data:
+            if not v.optional and not v.name in data:
                 raise RuntimeError("backend did not provide " + v.name)
         o = super().__new__(cls)
         o._data = data

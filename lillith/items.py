@@ -31,6 +31,12 @@ class ItemType(LocalObject, IconObject):
 
     def get_prices(self, **kwargs):
         return ItemPrice.filter(type=self, **kwargs)
+    
+    def get_buy_price(self, **kwargs):
+        return ItemPrice(type=self, buysell='buy', **kwargs)
+
+    def get_sell_price(self, **kwargs):
+        return ItemPrice(type=self, buysell='sell', **kwargs)
 
     def __repr__(self):
         return "<ItemType: {}>".format(self.name)
