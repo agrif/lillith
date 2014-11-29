@@ -15,6 +15,11 @@ class Isomorphism:
     def identity(cls):
         return cls.simple(lambda x: x, lambda x: x)
     
+    @classmethod
+    def from_map(cls, d):
+        rd = {k: v for v, k in d.items()}
+        return Isomorphism.simple(lambda x: d[x], lambda x: rd[x])
+    
     def reverse(self):
         return Isomorphism.simple(self.backward, self.forward)
 
@@ -75,14 +80,16 @@ class ModelID(Isomorphism):
     def __init__(self, model):
         self.model = model
     def forward(self, o):
-        return o.id
+        return o.id if isinstance(o, self.model) else o
     def backward(self, i):
         return self.model.new_from_id(i)
     
 class Field:
     def __init__(self, name=None, convert=Isomorphism.identity(), foreign_key=None):
         self.name = name
+        self.foreign_key = None
         if foreign_key:
+            self.foreign_key = foreign_key
             convert = convert.compose(ModelID(foreign_key))
         self.convert = convert
     def __repr__(self):
@@ -177,14 +184,20 @@ class ModelMeta(type):
             fields[k] = v
             if v.name is None:
                 v.name = convert.forward(k)
+        rfields = {}
         for k, v in fields.items():
             attrs[k] = v.make_property()
+            rfields[v.name] = v
         attrs['_fields'] = fields
         attrs['_cache'] = weakref.WeakValueDictionary()
 
         if fields:
             backend.verify(name, attrs)
-        return super().__new__(cls, name, bases, attrs)
+        model = super().__new__(cls, name, bases, attrs)
+        idk = backend.get_id_key(model)
+        if idk:
+            model._fields['self'] = Field(idk, foreign_key=model)
+        return model
 
     def __init__(self, name, bases, attrs, **kwargs):
         return super().__init__(name, bases, attrs)
@@ -196,7 +209,7 @@ def parse_constraints(model, raw):
         if '__' in k:
             k, ctype = k.split('__', 1)
         
-        if not k in model._fields and k != "self":
+        if not k in model._fields:
             raise ValueError('invalid field: ' + k)
         if ctype:
             if not ctype in constraint_types:
@@ -206,16 +219,10 @@ def parse_constraints(model, raw):
         else:
             if not isinstance(v, Constraint):
                 v = Equal(v)
-        if k == "self":
-            idk = model._backend.get_id_key(model)
-            if idk is None:
-                raise NotImplementedError("backend does not support ids")
-            v = v.map(lambda x: x.id if isinstance(x, model) else x)
-            cs.setdefault(idk, []).append(v)
-        else:
-            f = model._fields[k]
-            v = v.map(f.convert.forward)
-            cs.setdefault(f.name, []).append(v)
+
+        f = model._fields[k]
+        v = v.map(f.convert.forward)
+        cs.setdefault(f, []).append(v)
     final = {}
     for k, v in cs.items():
         if len(v) == 0:

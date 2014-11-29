@@ -35,9 +35,6 @@ class SqliteBackend(Backend):
     def __init__(self, dbcallback):
         self.dbc = dbcallback
 
-    def verify(self, name, attrs):
-        pass
-
     def get_id_key(self, model):
         return 'rowid'
 
@@ -64,7 +61,7 @@ class SqliteBackend(Backend):
         cons = []
         binds = []
         for k, v in constraints.items():
-            cv = SqlConstraintVisitor(k)
+            cv = SqlConstraintVisitor(k.name)
             cs, bind = cv.visit(v)
             cons.append(cs)
             binds += bind
