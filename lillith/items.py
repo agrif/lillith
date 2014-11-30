@@ -1,5 +1,5 @@
 from .local import LocalObject
-from .model import Field, Isomorphism
+from .model import Field, Converter
 from .map import *
 from .cached_property import cached_property
 from .icons import IconObject
@@ -12,7 +12,7 @@ class ItemType(LocalObject, IconObject):
     _icon_type = 'Type'
     
     # groupID
-    name = Field('typeName')
+    name = Field('typeName', nominal=True)
     description = Field()
     mass = Field()
     volume = Field()
@@ -20,7 +20,7 @@ class ItemType(LocalObject, IconObject):
     portion_size = Field()
     # raceID
     base_price = Field()
-    published = Field(convert=Isomorphism.simple(int, bool))
+    published = Field(convert=Converter.simple(int, bool))
     # marketGroupID
     chance_of_duplicating = Field()
 
@@ -51,7 +51,7 @@ class SpaceItem(LocalObject):
     solar_system = Field('solarSystemID', foreign_key=SolarSystem)
     constellation = Field('constellationID', foreign_key=Constellation)
     region = Field('regionID', foreign_key=Region)
-    name = Field('itemName')
+    name = Field('itemName', nominal=True)
 
     def __repr__(self):
         return "<SpaceItem {} {}>".format(self.type.name, self.name)

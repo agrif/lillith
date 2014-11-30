@@ -1,5 +1,5 @@
 from .local import LocalObject
-from .model import Field, Isomorphism
+from .model import Field, Converter
 import lillith
 from .Api import RemoteObject, RemoteQueryBuilder, Api
 from .cached_property import cached_property
@@ -36,7 +36,7 @@ class MapObject(SimpleMapObject):
 class Region(MapObject):
     _table = 'mapRegions'
 
-    name = Field('regionName')
+    name = Field('regionName', nominal=True)
     
     # factionID
     
@@ -54,7 +54,7 @@ class Region(MapObject):
 class Constellation(MapObject):
     _table = 'mapConstellations'
 
-    name = Field('constellationName')
+    name = Field('constellationName', nominal=True)
     region = Field('regionID', foreign_key=Region)
     # factionID
     
@@ -68,17 +68,17 @@ class Constellation(MapObject):
 class SolarSystem(MapObject):
     _table = 'mapSolarSystems'
 
-    name = Field('solarSystemName')
+    name = Field('solarSystemName', nominal=True)
     region = Field('regionID', foreign_key=Region)
     constellation = Field('constellationID', foreign_key=Constellation)
     luminosity = Field()
-    border = Field(convert=Isomorphism.simple(int, bool))
-    fringe = Field(convert=Isomorphism.simple(int, bool))
-    corridor = Field(convert=Isomorphism.simple(int, bool))
-    hub = Field(convert=Isomorphism.simple(int, bool))
-    international = Field(convert=Isomorphism.simple(int, bool))
-    regional = Field(convert=Isomorphism.simple(int, bool))
-    constellational = Field('constellation', convert=Isomorphism.simple(int, bool))
+    border = Field(convert=Converter.simple(int, bool))
+    fringe = Field(convert=Converter.simple(int, bool))
+    corridor = Field(convert=Converter.simple(int, bool))
+    hub = Field(convert=Converter.simple(int, bool))
+    international = Field(convert=Converter.simple(int, bool))
+    regional = Field(convert=Converter.simple(int, bool))
+    constellational = Field('constellation', convert=Converter.simple(int, bool))
     security = Field()
     
     @cached_property
@@ -148,7 +148,7 @@ class Station(SimpleMapObject):
     def __repr__(self):
         return "<Station {}>".format(self.name)
 
-    name = Field('stationName')
+    name = Field('stationName', nominal=True)
     region = Field('regionID', foreign_key=Region)
     constellation = Field('constellationID', foreign_key=Constellation)
     solar_system = Field('solarSystemID', foreign_key=SolarSystem)

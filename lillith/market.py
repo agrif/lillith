@@ -1,5 +1,5 @@
 from .config import _getcf
-from .model import Backend, Model, Field, Isomorphism, ConstraintVisitor
+from .model import Backend, Model, Field, Converter, ConstraintVisitor
 from .cached_property import cached_property
 from .map import Region, SolarSystem
 from .items import ItemType
@@ -9,16 +9,6 @@ import urllib.request
 import json
 
 __all__ = ['ItemPrice']
-
-class ModelFromName(Isomorphism):
-    def __init__(self, model):
-        self.model = model
-    def forward(self, x):
-        if isinstance(x, self.model):
-            return x.id
-        return self.model(name=x).id
-    def backward(self, x):
-        return self.model.new_from_id(x)
 
 class EqualConstraintVisitor(ConstraintVisitor):
     def __init__(self, full=set()): # empty full set is ok-ish for most uses
@@ -102,10 +92,10 @@ class MarketObject(Model, backend=MarketBackend()):
 class ItemPrice(MarketObject):
     _url = "http://api.eve-marketdata.com/api/item_prices2.json"
     
-    type = Field('typeID', convert=ModelFromName(ItemType), extra={'paramname': 'type_ids'})
-    region = Field('regionID', convert=ModelFromName(Region), optional=True, extra={'paramname': 'region_ids'})
-    solar_system = Field('solarsystemID', convert=ModelFromName(SolarSystem), optional=True, extra={'paramname': 'solarsystem_ids'})
-    buysell = Field(convert=Isomorphism.from_map({'buy': 'b', 'sell': 's'}), extra={'paramname': 'buysell', 'default': 'a', 'edit': lambda x: {'a'} if x == {'b', 's'} else x, 'all': {'b', 's'}})
+    type = Field('typeID', foreign_key=ItemType, extra={'paramname': 'type_ids'})
+    region = Field('regionID', foreign_key=Region, optional=True, extra={'paramname': 'region_ids'})
+    solar_system = Field('solarsystemID', foreign_key=SolarSystem, optional=True, extra={'paramname': 'solarsystem_ids'})
+    buysell = Field(convert=Converter.from_map({'buy': 'b', 'sell': 's'}), extra={'paramname': 'buysell', 'default': 'a', 'edit': lambda x: {'a'} if x == {'b', 's'} else x, 'all': {'b', 's'}})
     price = Field()
     
     @cached_property
