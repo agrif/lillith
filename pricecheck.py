@@ -1,9 +1,7 @@
 import lillith
 import sys
+import argparse
 import math
-
-db = "data.db"
-charname = "Grifasi"
 
 def niceisk(n, sigfigs=3):
     units = {
@@ -23,32 +21,33 @@ def niceisk(n, sigfigs=3):
     return "{} {}".format(n, units[unit])
 
 if __name__ == '__main__':
-    lillith.initialize(db, charname)
-    if len(sys.argv) > 3 or len(sys.argv) <= 1:
-        print("usage: {} <system/region> [item]".format(sys.argv[0]), file=sys.stderr)
-        sys.exit(1)
-    
-    place = sys.argv[1]
-    item = None
-    if len(sys.argv) == 3:
-        item = sys.argv[2]
-        try:
-            item = lillith.ItemType(name=lillith.Like(item))
-        except ValueError:
-            print("invalid item: {}".format(item), file=sys.stderr)
-            sys.exit(1)
-    
+    parse = argparse.ArgumentParser(description="a simple price checker")
+    parse.add_argument('item')
+    parse.add_argument('-l', '--location')
+    lillith.config.add_arguments(parse)
+    p = parse.parse_args()
+
     try:
-        placename = place
-        place = lillith.SolarSystem(name=lillith.Like(placename))
-        prices = lillith.ItemPrice.filter(solar_system=place, type=item)
+        item = lillith.ItemType(name__like=p.item)
     except ValueError:
+        print ("invalid item: {0}".format(p.item), file=sys.stderr)
+        sys.exit(1)
+
+    if p.location:
         try:
-            place = lillith.Region(name=lillith.Like(placename))
-            prices = lillith.ItemPrice.filter(region=place, type=item)
+            place = lillith.SolarSystem(name__like=p.location)
+            prices = lillith.ItemPrice.filter(solar_system=place, type=item)
         except ValueError:
-            print("invalid place: {}".format(placename), file=sys.stderr)
-            sys.exit(1)
+            try:
+                place = lillith.Region(name__like=p.location)
+                prices = lillith.ItemPrice.filter(region=place, type=item)
+            except ValueError:
+                print("invalid place: {0}".format(p.location), file=sys.stderr)
+                sys.exit(1)
+    else:
+        prices = lillith.ItemPrice.filter(type=item)               
     
     for price in prices:
-        print("{} {}: {} ({}/m^3)".format(price.type.name, price.buysell, niceisk(price.price), niceisk(price.price / item.volume)))
+        if price.price <= 0:
+            continue
+        print("{0} {1}: {2} ({3}/m^3)".format(price.type.name, price.buysell, niceisk(price.price), niceisk(price.price / item.volume)))
