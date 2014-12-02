@@ -1,4 +1,4 @@
-from .config import *
+from . import config
 from .model import *
 from .map import *
 from .items import *

@@ -5,11 +5,11 @@ import urllib.request
 import bz2
 import time
 import configparser
-import weakref
+import argparse
 import sqlite3
 import parameterize
 
-__all__ = ['data_path', 'config_path', 'character_name', 'api_key']
+__all__ = ['data_path', 'config_path', 'character_name', 'api_key', 'add_arguments']
 
 SDE_BASE_URL = "https://www.fuzzwork.co.uk/dump/"
 SDE_SQLITE_URL = SDE_BASE_URL + 'sqlite-latest.sqlite.bz2'
@@ -250,3 +250,45 @@ def data_path(p):
 
 def config_path(p):
     return configp.parameterize(Configuration([p] + [s.path for s in config.stores]))
+
+def add_arguments(p, prefix=''):
+    def call(f):
+        class CallAction(argparse.Action):
+            def __init__(self, option_strings, dest, **kwargs):
+                super().__init__(option_strings, '__lillith_' + dest, **kwargs)
+            def __call__(self, parser, namespace, values, option_string=None):
+                f(values)
+        return CallAction
+    
+    def add(n, **kwargs):
+        p.add_argument('--' + prefix + n, **kwargs)
+
+    def add_call(**kwargs):
+        def inner(f):
+            n = f.__name__.replace('_', '-')
+            add(n, action=call(f), **kwargs)
+            return f
+        return inner
+
+    @add_call(metavar='PATH', help='set path to the Eve Static Data Export')
+    def data_path(p):
+        datap(Data([p] + [s.path for s in data.stores]))
+
+    @add_call(metavar='PATH', help='set a path to a lillith config directory')
+    def config_path(p):
+        configp(Configuration([p] + [s.path for s in config.stores]))
+
+
+    @add_call(metavar='NAME', help='set character name to use for eve-marketdata.com')
+    def character(c):
+        character_namep(c)
+
+    def api_key_type(s):
+        if not ':' in s:
+            raise argparse.ArgumentTypeError('must have form ID:vCode')
+        return s
+    
+    @add_call(metavar='ID:VCODE', type=api_key_type, help='set API Key to use for official API')
+    def api_key(t):
+        k, v = t.split(':', 1)
+        api_keyp((k, v))
