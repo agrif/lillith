@@ -1,6 +1,3 @@
-from .timed_dict import TimedDict
-from .ApiCache import ApiCache
-
 import sys
 import os
 import os.path
@@ -12,29 +9,10 @@ import weakref
 import sqlite3
 import parameterize
 
-__all__ = ['initialize', 'data_path', 'config_path', 'character_name', 'api_key']
+__all__ = ['data_path', 'config_path', 'character_name', 'api_key']
 
 SDE_BASE_URL = "https://www.fuzzwork.co.uk/dump/"
 SDE_SQLITE_URL = SDE_BASE_URL + 'sqlite-latest.sqlite.bz2'
-
-_lillith_config = None
-def _getcf():
-    global _lillith_config
-    if _lillith_config is None:
-        # temporary HACK FIXME
-        initialize(None, None)
-    return _lillith_config
-
-def initialize(key_id, vcode, cachetime=60*5, apicachedir=".evecache"):
-    class Config:
-        def __init__(self):
-            self.marketcache = TimedDict(time=cachetime)
-            self.api_key_id = key_id
-            self.api_vcode = vcode
-            self.apicache = ApiCache(apicachedir)
-        
-    global _lillith_config
-    _lillith_config = Config()
 
 class Storage:
     def __init__(self, path):

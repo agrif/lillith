@@ -1,6 +1,7 @@
-from .config import _getcf, config
+from .config import config
 from .model import Backend, Model, Field, Converter, ConstraintVisitor
 from .cached_property import cached_property
+from .timed_dict import TimedDict
 from .map import Region, SolarSystem
 from .items import ItemType
 
@@ -30,11 +31,13 @@ class EqualConstraintVisitor(ConstraintVisitor):
         return {v}
 
 class MarketBackend(Backend):
+    def __init__(self):
+        self.cache = TimedDict(time=60*5)
+
     def fetch(self, model, constraints):
         if not '_url' in dir(model):
             raise ValueError("Market models must have a _url attribute")
         
-        cfg = _getcf()
         params = {}
         for k, v in constraints.items():
             paramname = k.extra.get('paramname', None)
@@ -55,7 +58,7 @@ class MarketBackend(Backend):
         url = model._url + '?' + urllib.parse.urlencode(params)
         
         try:
-            return cfg.marketcache[url]
+            return self.cache[url]
         except:
             pass
         
@@ -83,7 +86,7 @@ class MarketBackend(Backend):
                             pass
                 rect_data[k] = v
             results.append(rect_data)
-        cfg.marketcache[url] = results
+        self.cache[url] = results
         return results
 
 class MarketObject(Model, backend=MarketBackend()):

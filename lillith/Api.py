@@ -1,4 +1,5 @@
-from .config import _getcf
+from .config import config
+from .ApiCache import ApiCache
 
 import time
 import urllib.parse
@@ -58,33 +59,33 @@ def xml_to_dict(s):
         cachetime = (cacheduntil - currenttime).total_seconds()
     return cachetime, result
 
+# FIXME cache
+apicache = ApiCache(".evecache")
 
 class Api:
     _base_url = 'https://api.eveonline.com/'
 
     @classmethod
     def fetch(cls, method, **data):
-        cfg = _getcf()
         data = data.copy()
-        data.update({"keyID": cfg.api_key_id, "vCode": cfg.api_vcode})
+        data.update({"keyID": config.api_key_id, "vCode": config.api_key_vcode})
         return cls.fetch_nokey(method, **data)
     
     @classmethod
     def fetch_nokey(cls, method, **data):
         url = cls._base_url + method
-        cfg = _getcf()
         keys = list(data.keys())
         keys.sort()
         data = urllib.parse.urlencode([(x, data[x]) for x in keys])
 
-        val = cfg.apicache.lookup(url + data)
+        val = apicache.lookup(url + data)
         if val is not None:
             return xml_to_dict(val)[1]
         req = urllib.request.urlopen(url, data.encode("UTF-8"))
         val = req.read()
 
         expire, d = xml_to_dict(val.decode("UTF-8"))
-        cfg.apicache.save(url + data, val, expire)
+        apicache.save(url + data, val, expire)
         return d
 
 class RemoteQueryBuilder:

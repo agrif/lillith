@@ -4,7 +4,6 @@ import lillith
 from .Api import RemoteObject, RemoteQueryBuilder, Api
 from .cached_property import cached_property
 from .html import HTMLBuilder
-from .config import _getcf
 
 __all__ = ['Region', 'Constellation', 'SolarSystem', 'Station', 'ConquerableStation']
 
@@ -183,7 +182,6 @@ class ConquerableStation(RemoteObject):
     
     @classmethod
     def filter(cls, id=None, name=None):
-        cfg = _getcf()
         qb = RemoteQueryBuilder(cls)
         if type(id) == int:
             id = str(id)

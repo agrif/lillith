@@ -3,7 +3,6 @@ from .model import Field, Converter
 from .map import *
 from .cached_property import cached_property
 from .icons import IconObject
-from .config import _getcf
 
 __all__ = ['ItemType', 'Item', 'ItemContainer', 'SpaceItem']
    
