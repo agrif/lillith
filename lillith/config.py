@@ -75,7 +75,7 @@ class SearchingLoader:
         self._store = None
         self.reload()
 
-    def _perform_on_store(self, act, store=None):
+    def _perform_on_store(self, do, store=None):
         if store:
             do(store)
             return
@@ -105,6 +105,9 @@ def api_key(id, vcode):
 
 class Configuration(SearchingLoader):
     cfname = 'config.ini'
+    character_config_key = 'character'
+    api_id_config_key = 'key_id'
+    api_vcode_config_key = 'vcode'
     def reload(self):
         self._cf = {}
         self._store = None
@@ -123,7 +126,7 @@ class Configuration(SearchingLoader):
         n = character_namep()
         if n:
             return n
-        n = self._cf.get('character')
+        n = self._cf.get(self.character_config_key)
         if n:
             return n
         raise RuntimeError('character name not configured')
@@ -133,7 +136,7 @@ class Configuration(SearchingLoader):
         k, _ = api_keyp()
         if k:
             return k
-        k = self._cf.get('key_id')
+        k = self._cf.get(self.api_id_config_key)
         if k:
             return k
         raise RuntimeError('api key not configured')
@@ -143,10 +146,31 @@ class Configuration(SearchingLoader):
         _, v = api_keyp()
         if v:
             return v
-        v = self._cf.get('vcode')
+        v = self._cf.get(self.api_vcode_config_key)
         if v:
             return v
         raise RuntimeError('api key not configured')
+
+    def save(self, store=None):
+        dat = {}
+        try:
+            dat[self.character_config_key] = self.character_name
+        except RuntimeError:
+            pass
+        try:
+            dat[self.api_id_config_key] = self.api_key_id
+            dat[self.api_vcode_config_key] = self.api_key_vcode
+        except RuntimeError:
+            pass
+
+        def do(store):
+            cfg = configparser.ConfigParser()
+            cfg['DEFAULT'] = dat
+            with store.open(self.cfname, mode='w') as f:
+                cfg.write(f)
+            self.reload()
+
+        self._perform_on_store(do, store=store)
         
 class Data(SearchingLoader):
     dbname = 'data.sqlite'
