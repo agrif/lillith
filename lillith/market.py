@@ -1,4 +1,4 @@
-from .config import _getcf
+from .config import _getcf, config
 from .model import Backend, Model, Field, Converter, ConstraintVisitor
 from .cached_property import cached_property
 from .map import Region, SolarSystem
@@ -50,7 +50,7 @@ class MarketBackend(Backend):
                 continue
             if 'default' in f.extra and paramname not in params:
                 params[paramname] = f.extra['default']
-        params['char_name'] = cfg.charname
+        params['char_name'] = config.character_name
         
         url = model._url + '?' + urllib.parse.urlencode(params)
         

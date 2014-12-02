@@ -1,4 +1,4 @@
-from .config import _getcf
+from .config import data
 from .model import ConstraintVisitor, Backend, CamelCase, Model
 
 class SqlConstraintVisitor(ConstraintVisitor):
@@ -77,6 +77,6 @@ class SqliteBackend(Backend):
         c.execute(query, binds)
         return self._iter_data(c)
 
-class LocalObject(Model, backend=SqliteBackend(lambda: _getcf().dbconn)):
+class LocalObject(Model, backend=SqliteBackend(lambda: data.database)):
     pass
 
