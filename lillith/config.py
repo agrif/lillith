@@ -295,14 +295,6 @@ def add_arguments(p, prefix=''):
             return f
         return inner
 
-    @add_call(metavar='PATH', help='set path to the Eve Static Data Export')
-    def data_path(p):
-        datap(Data([p] + [s.path for s in data.stores]))
-
-    @add_call(metavar='PATH', help='set a path to a lillith config directory')
-    def config_path(p):
-        configp(Configuration([p] + [s.path for s in config.stores]))
-
     @add_call(metavar='NAME', help='select which profile to use from lillith config')
     def profile(p):
         profilep(p)
