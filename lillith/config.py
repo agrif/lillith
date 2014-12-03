@@ -51,7 +51,8 @@ class Storage:
                     os.chmod(self.path, self.mode)
         p = self.join(*paths)
         f = open(p, mode=mode, **kwargs)
-        os.chmod(p, self.mode & ~(stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH))
+        if self.mode:
+            os.chmod(p, self.mode & ~(stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH))
         return f
 
 class SearchingLoader:
@@ -63,20 +64,17 @@ class SearchingLoader:
 
     def _perform_on_store(self, do, store=None):
         if store:
-            do(store)
-            return
+            return do(store)
 
         if self._store:
             if not self._store.writeable:
                 raise IOError("location in use is not writeable: {0}".format(self._store))
-            do(self._store)
-            return
+            return do(self._store)
         
         for store in self.stores:
             if not store.writeable:
                 continue
-            do(store)
-            return
+            return do(store)
         
         raise IOError("none of the locations were writeable: {0}".format(self.stores))
 
@@ -151,23 +149,31 @@ class Configuration(SearchingLoader):
 
     def save(self, store=None):
         def do(store):
+            needs_save = False
             p = profilep()
             if not p in self._cf:
                 self._cf[p] = {}
-            
-            n = character_namep()
-            if n:
-                self._profile_data[self.character_config_key] = n
-            k, v = api_keyp()
-            if k:
-                self._profile_data[self.api_id_config_key] = k
-            if v:
-                self._profile_data[self.api_vcode_config_key] = v
+                needs_save = True
 
-            with store.open(self.cfname, mode='w') as f:
-                self._cf.write(f)
-            self.reload()
-        self._perform_on_store(do, store=store)
+            def set_if(v, k):
+                nonlocal needs_save
+                if v:
+                    old = self._profile_data.get(k)
+                    self._profile_data[k] = v
+                    if old != v:
+                        needs_save = True
+
+            set_if(character_namep(), self.character_config_key)
+            k, v = api_keyp()
+            set_if(k, self.api_id_config_key)
+            set_if(v, self.api_vcode_config_key)
+
+            if needs_save:
+                with store.open(self.cfname, mode='w') as f:
+                    self._cf.write(f)
+                self.reload()
+            return needs_save
+        return self._perform_on_store(do, store=store)
         
 class Data(SearchingLoader):
     dbname = 'data.sqlite'
@@ -314,3 +320,35 @@ def add_arguments(p, prefix=''):
     def api_key(t):
         k, v = t.split(':', 1)
         api_keyp((k, v))
+
+def wizard():
+    print("The wizard is not yet complete.")
+
+if __name__ == "__main__":
+    parse = argparse.ArgumentParser(description="lillith config utility")
+    parse.add_argument('--wizard', default=False, action='store_true', help='run the interactive lillith configuration wizard')
+    parse.add_argument('--update-data', default=False, action='store_true', help='download the static data export, if needed')
+    add_arguments(parse)
+    p = parse.parse_args()
+
+    if len(sys.argv) == 1:
+        parse.print_help()
+    elif p.wizard:
+        wizard()
+    else:
+        # check if we should update
+        if p.update_data:
+            data.update()
+        
+        # just save the config
+        if config.save():
+            print('Profile:', profilep())
+            try:
+                print('Character Name:', config.character_name)
+            except Exception:
+                print('Character Name unset')
+            try:
+                print('API Key:', config.api_key_id, ':', ''.join('*' for c in config.api_key_vcode))
+            except Exception:
+                print('API Key unset')
+            
