@@ -80,8 +80,12 @@ class SearchingLoader:
         
         raise IOError("none of the locations were writeable: {0}".format(self.stores))
 
+profilep = parameterize.Parameter('DEFAULT')
 character_namep = parameterize.Parameter(None)
 api_keyp = parameterize.Parameter((None, None))
+
+def profile(n):
+    return profilep.parameterize(n)
 
 def character_name(n):
     return character_namep.parameterize(n)
@@ -98,24 +102,29 @@ class Configuration(SearchingLoader):
     api_vcode_config_key = 'vcode'
     
     def reload(self):
-        self._cf = {}
+        self._cf = configparser.ConfigParser()
         self._store = None
 
         for store in self.stores:
             if store.exists(self.cfname):
-                cfg = configparser.ConfigParser()
                 with store.open(self.cfname) as f:
-                    cfg.read_file(f)
-                self._cf = dict(cfg['DEFAULT'])
+                    self._cf.read_file(f)
                 self._store = store
                 break
+
+    @property
+    def _profile_data(self):
+        p = profilep()
+        if not p in self._cf:
+            raise ValueError('profile ' + repr(p) + ' does not exist')
+        return self._cf[p]
 
     @property
     def character_name(self):
         n = character_namep()
         if n:
             return n
-        n = self._cf.get(self.character_config_key)
+        n = self._profile_data.get(self.character_config_key)
         if n:
             return n
         raise RuntimeError('character name not configured')
@@ -125,7 +134,7 @@ class Configuration(SearchingLoader):
         k, _ = api_keyp()
         if k:
             return k
-        k = self._cf.get(self.api_id_config_key)
+        k = self._profile_data.get(self.api_id_config_key)
         if k:
             return k
         raise RuntimeError('api key not configured')
@@ -135,30 +144,29 @@ class Configuration(SearchingLoader):
         _, v = api_keyp()
         if v:
             return v
-        v = self._cf.get(self.api_vcode_config_key)
+        v = self._profile_data.get(self.api_vcode_config_key)
         if v:
             return v
         raise RuntimeError('api key not configured')
 
     def save(self, store=None):
-        dat = {}
-        try:
-            dat[self.character_config_key] = self.character_name
-        except RuntimeError:
-            pass
-        try:
-            dat[self.api_id_config_key] = self.api_key_id
-            dat[self.api_vcode_config_key] = self.api_key_vcode
-        except RuntimeError:
-            pass
-
         def do(store):
-            cfg = configparser.ConfigParser()
-            cfg['DEFAULT'] = dat
-            with store.open(self.cfname, mode='w') as f:
-                cfg.write(f)
-            self.reload()
+            p = profilep()
+            if not p in self._cf:
+                self._cf[p] = {}
+            
+            n = character_namep()
+            if n:
+                self._profile_data[self.character_config_key] = n
+            k, v = api_keyp()
+            if k:
+                self._profile_data[self.api_id_config_key] = k
+            if v:
+                self._profile_data[self.api_vcode_config_key] = v
 
+            with store.open(self.cfname, mode='w') as f:
+                self._cf.write(f)
+            self.reload()
         self._perform_on_store(do, store=store)
         
 class Data(SearchingLoader):
@@ -289,7 +297,10 @@ def add_arguments(p, prefix=''):
     def config_path(p):
         configp(Configuration([p] + [s.path for s in config.stores]))
 
-
+    @add_call(metavar='NAME', help='select which profile to use from lillith config')
+    def profile(p):
+        profilep(p)
+    
     @add_call(metavar='NAME', help='set character name to use for eve-marketdata.com')
     def character(c):
         character_namep(c)
