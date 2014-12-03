@@ -333,14 +333,18 @@ if __name__ == "__main__":
             data.update()
         
         # just save the config
-        if config.save():
-            print('Profile:', profilep())
-            try:
-                print('Character Name:', config.character_name)
-            except Exception:
-                print('Character Name unset')
-            try:
-                print('API Key:', config.api_key_id, ':', ''.join('*' for c in config.api_key_vcode))
-            except Exception:
-                print('API Key unset')
+        saved = config.save()
+        print('Profile:', profilep())
+        try:
+            print('Character Name:', config.character_name)
+        except Exception:
+            print('Character Name unset')
+        try:
+            print('API Key:', config.api_key_id, ':', ''.join('*' for c in config.api_key_vcode)[:10])
+        except Exception:
+            print('API Key unset')
+        if saved:
+            print('Saved.')
+        else:
+            print('Already set.')
             
