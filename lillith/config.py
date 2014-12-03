@@ -1,6 +1,7 @@
 import sys
 import os
 import os.path
+import stat
 import urllib.request
 import bz2
 import time
@@ -15,8 +16,9 @@ SDE_BASE_URL = "https://www.fuzzwork.co.uk/dump/"
 SDE_SQLITE_URL = SDE_BASE_URL + 'sqlite-latest.sqlite.bz2'
 
 class Storage:
-    def __init__(self, path):
+    def __init__(self, path, mode=None):
         self.path = os.path.abspath(path)
+        self.mode = mode
 
     def __repr__(self):
         traits = ""
@@ -45,11 +47,17 @@ class Storage:
         if 'w' in mode or 'a' in mode or '+' in mode:
             if not self.exists():
                 os.makedirs(self.path)
-        return open(self.join(*paths), mode=mode, **kwargs)
+                if self.mode:
+                    os.chmod(self.path, self.mode)
+        p = self.join(*paths)
+        f = open(p, mode=mode, **kwargs)
+        os.chmod(p, self.mode & ~(stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH))
+        return f
 
 class SearchingLoader:
+    store_mode = None
     def __init__(self, paths):
-        self.stores = [Storage(p) for p in paths]
+        self.stores = [Storage(p, mode=self.store_mode) for p in paths]
         self._store = None
         self.reload()
 
@@ -82,10 +90,13 @@ def api_key(id, vcode):
     return api_keyp.parameterize((id, vcode))
 
 class Configuration(SearchingLoader):
+    store_mode = stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR
+    
     cfname = 'config.ini'
     character_config_key = 'character'
     api_id_config_key = 'key_id'
     api_vcode_config_key = 'vcode'
+    
     def reload(self):
         self._cf = {}
         self._store = None
