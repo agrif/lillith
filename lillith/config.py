@@ -147,9 +147,9 @@ class Configuration(SearchingLoader):
             return v
         raise RuntimeError('api key not configured')
 
-    def save(self, store=None):
+    def save(self, store=None, force=False):
         def do(store):
-            needs_save = False
+            needs_save = force
             p = profilep()
             if not p in self._cf:
                 self._cf[p] = {}
@@ -313,9 +313,6 @@ def add_arguments(p, prefix=''):
         k, v = t.split(':', 1)
         api_keyp((k, v))
 
-def wizard():
-    print("The wizard is not yet complete.")
-
 if __name__ == "__main__":
     parse = argparse.ArgumentParser(description="lillith config utility")
     parse.add_argument('--wizard', default=False, action='store_true', help='run the interactive lillith configuration wizard')
@@ -326,6 +323,7 @@ if __name__ == "__main__":
     if len(sys.argv) == 1:
         parse.print_help()
     elif p.wizard:
+        from .wizard import wizard
         wizard()
     else:
         # check if we should update
