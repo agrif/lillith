@@ -1,7 +1,28 @@
 import weakref
+import functools
 from .cached_property import cached_property
 
 __all__ = []
+
+class ReprIterator:
+    """A wrapper for an iterator that still allows interactive shell printing."""
+    @classmethod
+    def wrap(cls, f):
+        @functools.wraps(f)
+        def inner(*args, **kwargs):
+            return ReprIterator(f(*args, **kwargs))
+        return inner
+    
+    def __init__(self, it):
+        self.it = it
+
+    def __iter__(self):
+        return iter(self.it)
+
+    def __repr__(self):
+        if type(self.it) != list:
+            self.it = list(self.it)
+        return "<ReprIterator: {0}>".format(self.it)
 
 class Bifunction:
     """A pair of functions (forward, backward) with a
@@ -337,6 +358,7 @@ class Model(metaclass=ModelMeta, backend=Backend()):
         return cls.filter()
     
     @classmethod
+    @ReprIterator.wrap
     def filter(cls, **kwargs):
         constraints = parse_constraints(cls, kwargs)
         k = cls._backend.get_id_key(cls)
