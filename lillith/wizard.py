@@ -198,8 +198,8 @@ def wizard(text_only):
     datastore = False
     if config.data.needs_update:
         w.p()
-        w.p('Lillith requires an updated local copy of the Static Data Export.')
-        w.p('One can be downloaded for you from ' + config.SDE_BASE_URL)
+        w.p('Lillith requires an updated local copy of the Static Data Export, about 300MB uncompressed.')
+        w.p('One can be downloaded for you from ' + config.SDE_BASE_URL + ' (about 100MB, compressed).')
         download = w.yesno('Do you want to download it now?')
         if download:
             datastore = choose_store(config.data.stores, "Where do you want to store the SDE?")
