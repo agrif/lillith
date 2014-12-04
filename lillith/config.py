@@ -315,16 +315,12 @@ def add_arguments(p, prefix=''):
 
 if __name__ == "__main__":
     parse = argparse.ArgumentParser(description="lillith config utility")
-    parse.add_argument('--wizard', default=False, action='store_true', help='run the interactive lillith configuration wizard')
     parse.add_argument('--update-data', default=False, action='store_true', help='download the static data export, if needed')
     add_arguments(parse)
     p = parse.parse_args()
 
     if len(sys.argv) == 1:
         parse.print_help()
-    elif p.wizard:
-        from .wizard import wizard
-        wizard()
     else:
         # check if we should update
         if p.update_data:
