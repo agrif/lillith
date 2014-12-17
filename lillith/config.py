@@ -8,6 +8,7 @@ import time
 import configparser
 import argparse
 import sqlite3
+import threading
 import parameterize
 
 __all__ = ['data_path', 'config_path', 'character_name', 'api_key', 'add_arguments']
@@ -178,24 +179,28 @@ class Configuration(SearchingLoader):
 class Data(SearchingLoader):
     dbname = 'data.sqlite'
     def reload(self):
-        self._db = None
+        self._dbcontainer = None
         self._store = None
-        
-        def eve_decode(b):
-            return b.decode('windows-1252')
         
         for store in self.stores:
             if store.exists(self.dbname):
                 self._store = store
-                self._db = sqlite3.connect(store.join(self.dbname))
-                self._db.text_factory = eve_decode
+                self._dbcontainer = threading.local()
+                # test that this will work later
+                sqlite3.connect(store.join(self.dbname))
                 break
 
     @property
     def database(self):
-        if self._db:
-            return self._db
-        raise RuntimeError("static data export is not available")
+        if not 'db' in dir(self._dbcontainer):
+            if not self._store:
+                raise RuntimeError("static data export is not available")
+            
+            db = sqlite3.connect(self._store.join(self.dbname))
+            db.text_factory = lambda b: b.decode('windows-1252')
+            self._dbcontainer.db = db
+        
+        return self._dbcontainer.db
 
     def _update_copy(self, store, url, path):
         BUFSIZE = 1024 * 16
@@ -233,9 +238,8 @@ class Data(SearchingLoader):
             return
 
         def do(store):
-            if self._db:
-                self._db.close()
-                self._db = None
+            if self._dbcontainer:
+                self._dbcontainer = None
             self._update_copy(store, SDE_SQLITE_URL, self.dbname)
             self.reload()
 

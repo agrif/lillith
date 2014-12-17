@@ -1,5 +1,5 @@
 from .cached_property import cached_property
-from .html import HTMLBuilder
+from .html_builder import HTMLBuilder
 
 class IconObject:
     _icon_type = None

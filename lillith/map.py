@@ -3,7 +3,7 @@ from .model import Field, Converter
 import lillith
 from .Api import RemoteObject, RemoteQueryBuilder, Api
 from .cached_property import cached_property
-from .html import HTMLBuilder
+from .html_builder import HTMLBuilder
 
 __all__ = ['Region', 'Constellation', 'SolarSystem', 'Station', 'ConquerableStation']
 

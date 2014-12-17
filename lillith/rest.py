@@ -1,12 +1,13 @@
-from flask import Blueprint, url_for
+from flask import Blueprint, url_for, request, abort
 from jinja2 import escape as html_escape
 
 __all__ = ['lillith_blueprint']
 
+# absolute imports to please the flask reloader
 import lillith
-from .model import Underscores, CamelCase
-from .map import Region, Constellation, SolarSystem, Station
-from .items import SpaceItem, ItemType
+from lillith.model import Underscores, CamelCase, Or
+from lillith.map import Region, Constellation, SolarSystem, Station
+from lillith.items import SpaceItem, ItemType
 
 models = [Region, Constellation, SolarSystem, Station, SpaceItem, ItemType]
 
@@ -87,10 +88,42 @@ class ModelUrls:
         return inner
     
     def index(self):
+        PAGE_SIZE = 50
+        page = request.args.get('page', 0)
+        try:
+            page = int(page)
+        except ValueError:
+            abort(400)
+        
+        navlinks = ""
+        if page > 0:
+            prev_url = self.url_for('index') + '?page=' + str(page - 1)
+            navlinks += "<a href=\"{0}\">&lt; prev</a>".format(prev_url)
+        navlinks += " <strong>page {0}</strong> ".format(page)
+        
+        kwargs = {k: v for k, v in request.args.items() if k != 'page'}
+        print(kwargs)
+        
         s = ""
-        for m in self.model.all():
-            s += "<li>" + self.repr_link(m) + "</li>"
-        return "<ul>" + s + "</ul>"
+        try:
+            dat = self.model.filter(**kwargs)
+            for i, m in enumerate(dat):
+                if i < page * PAGE_SIZE:
+                    continue
+                if i >= (page + 1) * PAGE_SIZE:
+                    break
+                s += "<li>" + self.repr_link(m) + "</li>"
+        except ValueError:
+            abort(400)
+        
+        try:
+            next(dat)
+            next_url = self.url_for('index') + '?page=' + str(page + 1)
+            navlinks += "<a href=\"{0}\">next &gt;</a>".format(next_url)
+        except StopIteration:
+            pass
+        
+        return navlinks + "<br><ul>" + s + "</ul><br>" + navlinks
         
     def view(self, id):
         m = self.model.new_from_id(id)
@@ -111,7 +144,7 @@ lillith_blueprint.route('/', endpoint='index')(ModelUrls.all_index)
 
 if __name__ == '__main__':
     from flask import Flask
-    from .config import add_arguments
+    from lillith.config import add_arguments
     import argparse
 
     parse = argparse.ArgumentParser(description="a REST interface to lillith")
