@@ -83,10 +83,12 @@ class Isomorphism(Bifunction):
         return self.new(self.backward, self.forward)
 
 class Underscores(Isomorphism):
+    def __init__(self, underscore='_'):
+        self.underscore = underscore
     def forward(self, l):
-        return '_'.join(w.lower() for w in l)
+        return self.underscore.join(w.lower() for w in l)
     def backward(self, s):
-        return [w.lower() for w in s.split('_')]
+        return [w.lower() for w in s.split(self.underscore)]
 
 class CamelCase(Isomorphism):
     def __init__(self, capitalize_first=False):
@@ -345,6 +347,32 @@ class Model(metaclass=ModelMeta, backend=Backend()):
     def __new__(cls, **kwargs):
         obj, = cls.filter(**kwargs)
         return obj
+    
+    def __lt__(self, other):
+        if not isinstance(other, type(self)) or not isinstance(self, type(other)):
+            raise TypeError('unorderable types')
+        
+        for k, v in self._fields.items():
+            if not v.nominal:
+                continue
+            s = getattr(self, k)
+            o = getattr(other, k)
+            if s == o:
+                continue            
+            return s < o
+        k = self._backend.get_id_key(self.__class__)
+        if k is None:
+            return id(self) < id(other)
+        return self._data[k] < other._data[k]
+
+    def __le__(self, other):
+        return self == other or self.__lt__(other)
+    
+    def __gt__(self, other):
+        return not self.__le__(other)
+    
+    def __ge__(self, other):
+        return not self.__lt__(other)
 
     @property
     def id(self):
