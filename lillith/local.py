@@ -6,10 +6,14 @@ class SqlConstraintVisitor(ConstraintVisitor):
         self.field = field
 
     def visit_compound(self, c, l):
-        op = {
-            'and': "and",
-            'or': "or",
+        op, default = {
+            'and': ("and", "1"),
+            'or': ("or", "0"),
         }[c.name]
+        
+        if not l:
+            return (default, [])
+        
         cs = []
         binds = []
         for o in l:
