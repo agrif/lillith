@@ -14,7 +14,7 @@ __all__ = ['lillith_blueprint']
 models = [Region, Constellation, SolarSystem, Station, SpaceItem, ItemType]
 
 python_cls_convention = CamelCase()
-url_convention = Underscores(underscore='-')
+url_convention = Underscores()
 js_convention = CamelCase()
 
 class ModelUrls:
@@ -43,7 +43,11 @@ class ModelUrls:
             urls = cls.all[type(m)]
             for k, f in m._fields.items():
                 if f.nominal:
-                    url = urls.url_for('view_nominal', name=getattr(m, k))
+                    v = str(getattr(m, k))
+                    if '_' in v:
+                        continue
+                    v = v.replace(' ', '_')
+                    url = urls.url_for('view_nominal', name=v)
                     break
             else:
                 url = urls.url_for('view', id=m.id)
@@ -139,6 +143,7 @@ class ModelUrls:
         return navlinks + "<br><ul>" + s + "</ul><br>" + navlinks
     
     def view_nominal(self, name):
+        name = name.replace('_', ' ')
         try:
             m = self.model(self=name)
         except ValueError:
