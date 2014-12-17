@@ -1,13 +1,15 @@
 from flask import Blueprint, url_for, request, abort
 from jinja2 import escape as html_escape
 
-__all__ = ['lillith_blueprint']
+from urllib.parse import urlencode
 
 # absolute imports to please the flask reloader
 import lillith
 from lillith.model import Underscores, CamelCase, Or
 from lillith.map import Region, Constellation, SolarSystem, Station
 from lillith.items import SpaceItem, ItemType
+
+__all__ = ['lillith_blueprint']
 
 models = [Region, Constellation, SolarSystem, Station, SpaceItem, ItemType]
 
@@ -30,6 +32,7 @@ class ModelUrls:
         
         self.route('/')(self.index)
         self.route('/<int:id>')(self.view)
+        self.route('/<name>')(self.view_nominal)
     
     def url_for(self, endpoint, *args, **kwargs):
         return url_for('.' + self.endpoint + '_' + endpoint, *args, **kwargs)
@@ -37,7 +40,13 @@ class ModelUrls:
     @classmethod
     def repr_link(cls, m, url=None):
         if url is None and type(m) in cls.all:
-            url = cls.all[type(m)].url_for('view', id=m.id)
+            urls = cls.all[type(m)]
+            for k, f in m._fields.items():
+                if f.nominal:
+                    url = urls.url_for('view_nominal', name=getattr(m, k))
+                    break
+            else:
+                url = urls.url_for('view', id=m.id)
         
         try:
             inside = m._repr_html_()
@@ -97,16 +106,18 @@ class ModelUrls:
         
         navlinks = ""
         if page > 0:
-            prev_url = self.url_for('index') + '?page=' + str(page - 1)
+            args = request.args.copy()
+            args['page'] = page - 1
+            prev_url = self.url_for('index') + '?' + urlencode(args)
             navlinks += "<a href=\"{0}\">&lt; prev</a>".format(prev_url)
         navlinks += " <strong>page {0}</strong> ".format(page)
+        navlinks += " <a href=\"{0}\">(up)</a> ".format(url_for('.index'))
         
         kwargs = {k: v for k, v in request.args.items() if k != 'page'}
-        print(kwargs)
         
         s = ""
         try:
-            dat = self.model.filter(**kwargs)
+            dat = iter(self.model.filter(**kwargs))
             for i, m in enumerate(dat):
                 if i < page * PAGE_SIZE:
                     continue
@@ -118,17 +129,27 @@ class ModelUrls:
         
         try:
             next(dat)
-            next_url = self.url_for('index') + '?page=' + str(page + 1)
+            args = request.args.copy()
+            args['page'] = page + 1
+            next_url = self.url_for('index') + '?' + urlencode(args)
             navlinks += "<a href=\"{0}\">next &gt;</a>".format(next_url)
         except StopIteration:
             pass
         
         return navlinks + "<br><ul>" + s + "</ul><br>" + navlinks
-        
+    
+    def view_nominal(self, name):
+        try:
+            m = self.model(self=name)
+        except ValueError:
+            abort(404)
+        return self.view(m.id)
+    
     def view(self, id):
         m = self.model.new_from_id(id)
 
-        res = self.repr_link(m) + "<br>"
+        res = "<a href=\"{0}\">(up)</a><br>".format(self.url_for('index'))
+        res += self.repr_link(m) + "<br>"
         res += self.repr_link({name: getattr(m, name) for name in m._fields if name != "self"})
         
         rel = {name: getattr(m, name) for name, val in vars(type(m)).items() if not name in m._fields and isinstance(val, property)}
