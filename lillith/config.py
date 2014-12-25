@@ -9,6 +9,8 @@ import configparser
 import argparse
 import sqlite3
 import threading
+
+import appdirs
 import parameterize
 
 __all__ = ['data_path', 'config_path', 'character_name', 'api_key', 'add_arguments']
@@ -258,14 +260,17 @@ add_env_path('LILLITH_CONFIG', config_paths)
 add_env_path('LILLITH_CACHE', cache_paths)
 add_env_path('LILLITH_DATA', data_paths)
 
-if sys.platform.startswith('linux'):
-    config_paths.append(os.path.expanduser('~/.config/lillith'))
-    cache_paths.append(os.path.expanduser('~/.cache/lillith'))
-    data_paths.append(os.path.expanduser('~/.local/share/lillith'))
-    data_paths.append(os.path.expanduser('/usr/local/share/lillith'))
-    data_paths.append(os.path.expanduser('/usr/share/lillith'))
-else:
-    raise RuntimeError('Unknown Platform: ' + sys.platform)
+dirs = appdirs.AppDirs('lillith', appauthor=False, multipath=True)
+def add_app_path(l, key):
+    user = getattr(dirs, 'user_' + key + '_dir')
+    site = getattr(dirs, 'site_' + key + '_dir', None)
+    l += user.split(os.pathsep)
+    if site:
+        l += site.split(os.pathsep)
+
+add_app_path(config_paths, 'config')
+add_app_path(cache_paths, 'cache')
+add_app_path(data_paths, 'data')
 
 datap = parameterize.Parameter(Data(data_paths))
 data = datap.proxy()
