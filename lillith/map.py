@@ -1,7 +1,7 @@
 from .local import LocalObject
 from .model import Field, Converter
 import lillith
-from .Api import RemoteObject, RemoteQueryBuilder, Api
+from .api import RemoteObject, RemoteQueryBuilder, Api
 from .cached_property import cached_property
 from .html_builder import HTMLBuilder
 

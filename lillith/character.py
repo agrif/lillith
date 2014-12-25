@@ -1,5 +1,5 @@
 import lillith
-import lillith.Api as Api
+from .api import Api
 from .icons import IconObject
 from .cached_property import cached_property
 
@@ -49,7 +49,7 @@ class Character(IconObject):
 
     @cached_property
     def account_balance(self):
-        accounts = Api.Api.fetch("/char/AccountBalance.xml.aspx", characterID=self.id)['accounts']
+        accounts = Api.fetch("/char/AccountBalance.xml.aspx", characterID=self.id)['accounts']
         return float(accounts[0]['balance'])
 
     @property
@@ -58,7 +58,7 @@ class Character(IconObject):
 
     @cached_property
     def assets(self):
-        data = Api.Api.fetch("/char/AssetList.xml.aspx", characterID=self.id)['assets']
+        data = Api.fetch("/char/AssetList.xml.aspx", characterID=self.id)['assets']
         items = []
 
         def handle_container(container, items):
@@ -82,7 +82,7 @@ class Character(IconObject):
     @classmethod
     def mine(cls):
         "Returns a list of your characters"
-        data = Api.Api.fetch("/account/Characters.xml.aspx")['characters']
+        data = Api.fetch("/account/Characters.xml.aspx")['characters']
         return [Character(id=c['characterID'], usekey=True) for c in data]
 
     @classmethod
@@ -92,9 +92,9 @@ class Character(IconObject):
         if all([id is not None, name is not None]):
             raise ValueError("cannot specify both id and name")
         
-        fetch = Api.Api.fetch_nokey
+        fetch = Api.fetch_nokey
         if usekey:
-            fetch = Api.Api.fetch
+            fetch = Api.fetch
 
         if name is not None:
             # convert name to ID
