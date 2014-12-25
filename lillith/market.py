@@ -1,7 +1,6 @@
-from .config import config
+from .config import config, cache
 from .model import Backend, Model, Field, Converter, ConstraintVisitor
 from .cached_property import cached_property
-from .timed_dict import TimedDict
 from .map import Region, SolarSystem
 from .items import ItemType
 
@@ -31,9 +30,8 @@ class EqualConstraintVisitor(ConstraintVisitor):
         return {v}
 
 class MarketBackend(Backend):
-    def __init__(self):
-        self.cache = TimedDict(time=60*5)
-
+    _cache_time = 5 * 60
+    
     def fetch(self, model, constraints):
         if not '_url' in dir(model):
             raise ValueError("Market models must have a _url attribute")
@@ -57,10 +55,9 @@ class MarketBackend(Backend):
         
         url = model._url + '?' + urllib.parse.urlencode(params)
         
-        try:
-            return self.cache[url]
-        except:
-            pass
+        results = cache.get(url)
+        if results:
+            return results
         
         #print(url)
         with urllib.request.urlopen(url) as f:
@@ -86,7 +83,7 @@ class MarketBackend(Backend):
                             pass
                 rect_data[k] = v
             results.append(rect_data)
-        self.cache[url] = results
+        cache.set(url, results, expires=self._cache_time)
         return results
 
 class MarketObject(Model, backend=MarketBackend()):

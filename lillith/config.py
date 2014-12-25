@@ -7,11 +7,14 @@ import bz2
 import time
 import configparser
 import argparse
+import json
+import collections
 import sqlite3
 import threading
 
 import appdirs
 import parameterize
+from .bifunction import JSON, Encode, Base64
 
 __all__ = ['data_path', 'config_path', 'character_name', 'api_key', 'add_arguments']
 
@@ -34,10 +37,17 @@ class Storage:
     def join(self, *paths):
         return os.path.join(self.path, *paths)
 
-    def exists(self, path=None):
-        if path:
-            return os.path.exists(self.join(path))
-        return os.path.exists(self.path)
+    def exists(self, *paths):
+        return os.path.exists(self.join(*paths))
+    
+    def remove(self, *paths):
+        os.remove(self.join(*paths))
+    
+    def listdir(self, *paths):
+        try:
+            return os.listdir(self.join(*paths))
+        except FileNotFoundError:
+            return []
 
     @property
     def writeable(self):
@@ -247,6 +257,101 @@ class Data(SearchingLoader):
 
         self._perform_on_store(do, store=store)
 
+class Cache(SearchingLoader, collections.MutableMapping):
+    store_mode = stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR
+    
+    _default_expire = 60 * 60
+    _autoclean_interval = 60 * 60
+    _key = JSON().compose(Encode().wrap(Base64(altchars=b'-_')))
+    _serialize = (json.load, json.dump)
+    
+    def reload(self):
+        self.main = self
+        @self._perform_on_store
+        def do(s):
+            self._store = s
+        self.clean()
+    
+    def __contains__(self, key):
+        self._autoclean()
+        k = self._key.forward(key)
+        return self._store.exists(k)
+    
+    def _remove(self, k):
+        try:
+            self._store.remove(k)
+        except Exception:
+            pass
+    
+    def __getitem__(self, key):
+        self._autoclean()
+        k = self._key.forward(key)
+        try:
+            with self._store.open(k) as f:
+                f.readline() # key
+                t = float(f.readline().strip())
+                if time.time() <= t:
+                    return self._serialize[0](f)
+        except Exception:
+            pass
+        
+        self._remove(k)
+        raise KeyError(key)
+    
+    def __setitem__(self, key, value, expires=None):
+        self._autoclean()
+        if expires is None:
+            expires = self._default_expire
+        k = self._key.forward(key)
+        try:
+            with self._store.open(k, mode='w') as f:
+                f.write('{0}\n'.format(repr(key)))
+                f.write('{0}\n'.format(time.time() + expires))
+                self._serialize[1](value, f)
+        except Exception:
+            self._remove(k)
+            raise
+    
+    def set(self, key, value, expires=None):
+        self.__setitem__(key, value, expires=expires)
+    
+    def __delitem__(self, key):
+        self._autoclean()
+        k = self._key.forward(key)
+        try:
+            self._store.remove(k)
+        except Exception:
+            raise KeyError(key)
+
+    def __iter__(self):
+        self._autoclean()
+        for k in self._store.listdir():
+            try:
+                key = self._key.backwards(k)
+                yield key
+            except Exception:
+                pass
+    
+    def __len__(self):
+        self._autoclean()
+        return len(self._store.listdir())
+    
+    def _autoclean(self):
+        if self._last_clean + self._autoclean_interval < time.time():
+            self.clean()
+    
+    def clean(self):
+        self._last_clean = time.time()
+        for k in self._store.listdir():
+            try:
+                with self._store.open(k) as f:
+                    f.readline() # key
+                    t = float(f.readline().strip())
+                    if time.time() > t:
+                        self._remove(k)
+            except Exception:
+                self._remove(k)
+
 config_paths = []
 cache_paths = []
 data_paths = []
@@ -261,29 +366,32 @@ add_env_path('LILLITH_CACHE', cache_paths)
 add_env_path('LILLITH_DATA', data_paths)
 
 dirs = appdirs.AppDirs('lillith', appauthor=False, multipath=True)
-def add_app_path(l, key):
+def add_app_path(l, key, use_site=False):
     user = getattr(dirs, 'user_' + key + '_dir')
     site = getattr(dirs, 'site_' + key + '_dir', None)
     l += user.split(os.pathsep)
-    if site:
+    if site and use_site:
         l += site.split(os.pathsep)
 
 add_app_path(config_paths, 'config')
 add_app_path(cache_paths, 'cache')
-add_app_path(data_paths, 'data')
+add_app_path(data_paths, 'data', use_site=True)
 
 datap = parameterize.Parameter(Data(data_paths))
 data = datap.proxy()
 configp = parameterize.Parameter(Configuration(config_paths))
 config = configp.proxy()
-#cachep = parameterize.Parameter(Cache(cache_paths))
-#cache = cachep.proxy()
+cachep = parameterize.Parameter(Cache(cache_paths))
+cache = cachep.proxy()
 
 def data_path(p):
     return datap.parameterize(Data([p] + [s.path for s in data.stores]))
 
 def config_path(p):
     return configp.parameterize(Configuration([p] + [s.path for s in config.stores]))
+
+def cache_path(p):
+    return cachep.parameterize(Cache([p] + [s.path for s in cache.stores]))
 
 def add_arguments(p, prefix=''):
     def call(f):

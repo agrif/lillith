@@ -1,12 +1,10 @@
-from .config import config
-from .ApiCache import ApiCache
+from .config import config, cache
 
 import time
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 import datetime
-
 
 def xml_to_dict(s):
     root = ET.fromstring(s)
@@ -59,9 +57,6 @@ def xml_to_dict(s):
         cachetime = (cacheduntil - currenttime).total_seconds()
     return cachetime, result
 
-# FIXME cache
-apicache = ApiCache(".evecache")
-
 class Api:
     _base_url = 'https://api.eveonline.com/'
 
@@ -77,15 +72,15 @@ class Api:
         keys = list(data.keys())
         keys.sort()
         data = urllib.parse.urlencode([(x, data[x]) for x in keys])
-
-        val = apicache.lookup(url + data)
-        if val is not None:
-            return xml_to_dict(val)[1]
+        
+        d = cache.get(url + '?' + data)
+        if d is not None:
+            return d
         req = urllib.request.urlopen(url, data.encode("UTF-8"))
         val = req.read()
 
         expire, d = xml_to_dict(val.decode("UTF-8"))
-        apicache.save(url + data, val, expire)
+        cache.set(url + '?' + data, d, expire)
         return d
 
 class RemoteQueryBuilder:
